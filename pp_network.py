@@ -8,11 +8,11 @@ class net_model:
     
     # The state of the network, powerflow, and reward
     
-    def __init__(self,network_name):
+    def __init__(self,network_name,zero_out_gens = False):
         
         self.network_name = network_name
         if network_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
-            self.pp_net = pp.networks,create_synthetic_voltage_control_lv_network(network_class = network_name)
+            self.pp_net = pp.networks.create_synthetic_voltage_control_lv_network(network_class = network_name)
             net = self.pp_net
         else: 
             self.pp_net = getattr(pp.networks,network_name)
@@ -26,18 +26,30 @@ class net_model:
         self.load_realpowers = np.zeros(self.num_loadbus)
         self.load_reactivepowers = np.zeros(self.num_loadbus)
         
-        self.genbuses = []
-        self.gen_real = []
-        self.num_sgen = net.sgen.shape[0] # Number of static generators (our simple model of a generator)
+        # Number of static generators (our simple model of a generator)
+        self.sgen_buses = []
+        self.sgen_real = []
+        self.sgen_react = []
+        self.num_sgen = net.sgen.shape[0] 
+        self.num_sgen_original = net.sgen.shape[0]
         if self.num_sgen > 0:
             for i in range(self.num_sgen):
-                self.genbuses = np.append(self.genbuses,net.sgen.bus[i])
-                self.gen_real = np.append(self.gen_real,0.0) # Had problems with data type when there were multiple gens vs. one
+                self.sgen_buses = np.append(self.sgen_buses,net.sgen.bus[i])
+                self.sgen_real = np.append(self.sgen_real,0.0) 
+                self.sgen_react = np.append(self.sgen_react,0.0) 
         
-
-#         self.gen_reactive = 0 # No reactive power yet
-        self.num_normalgen = net.gen.shape[0]
-
+        self.zero_out_gens = zero_out_gens
+        self.gen_buses = []
+        self.gen_real = []
+        self.gen_react = []
+        self.num_gen = net.gen.shape[0]
+        if self.num_gen > 0:
+            for i in range(self.num_gen):
+                self.gen_buses = np.append(self.gen_buses,net.gen.bus[i])
+                if zero_out_gens:
+                    self.gen_real = np.append(self.gen_real,0.0) 
+                    self.gen_react = np.append(self.gen_react,0.0) 
+                        
         self.reward_val = 0
         
         self.num_lines = net.line.shape[0]
@@ -53,15 +65,20 @@ class net_model:
         
         return
         
-        
-    def add_generation(self,bus_number, init_real_power):
+    def add_sgeneration(self,bus_number,init_real_power,init_react_power = 0.0):
         
         # Add where this generation unit is to the list
-        self.genbuses = np.append(self.genbuses,bus_number)
-        self.num_sgen = self.genbuses.shape[0]
+        self.sgen_buses = np.append(self.sgen_buses, bus_number)
+        self.num_sgen = self.sgen_buses.shape[0]
         # Add this generation units value to the list
-        generation = np.append(self.gen_real,init_real_power)
-        self.gen_real = generation
+        self.sgen_real = np.append(self.sgen_real, init_real_power)
+        self.sgen_react = np.append(self.sgen_react, init_react_power)
+        
+        return
+    
+    def add_generation():
+        
+        print('Add functionality to have a non static generator added')
         
         return
 
@@ -74,9 +91,11 @@ class net_model:
         return
     
 
-    def update_generation(self,new_gen_p, new_gen_q = 0):
+    def update_generation(self,new_gen_p, new_gen_q = False):
         
-        self.genreal = new_gen_p
+        self.sgen_real = new_gen_p
+        if new_gen_q:
+            self.sgen_react = new_gen_q
         
         return
     
@@ -100,9 +119,9 @@ class net_model:
         return
         
         
-    def run_powerflow(self,check=False,zero_test = False):
+    def run_powerflow(self,check=False):
     
-        if network_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
+        if self.network_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
             net = self.pp_net
         else:
             net = self.pp_net()
@@ -118,21 +137,20 @@ class net_model:
 
         net.load = df
         
-        # Zero out the initialized q generation values from the standard generators so that we only have ones we control (not sure if this works or is how to do it, but I will work on it after Monday)
-        if zero_test == True:
-            num_real_gen = net.gen.shape[0]
+ 
+        if self.num_gen > 0:
             net.gen.min_q_var = 0 
-            net.gen.max_q_var = 0
-            for i in range(self.num_normalgen):
-                net.gen.p_kw[i] = 0.0
-                net.gen.sn_kva[i] = 0.1
+            net.gen.max_q_var = np.max(self.gen_react)
+            net.gen.p_kw = self.gen_real # Should be negative
+            net.gen.sn_kva = np.sqrt(np.power(self.gen_real, 2) + np.power(self.gen_react, 2)) # Want to set p and q, not s
 
-        # Apply generation values
+        # Apply generation values to static generators --- add functionality for other generators still
         for i in range(self.num_sgen):
-            pandapower.create_sgen(net, self.genbuses[i], self.gen_real[i]) # No reactive power yet
+            pandapower.create_sgen(net, self.sgen_buses[i], self.sgen_real[i], self.sgen_react[i])
         # Apply storage information
         for i in range(self.num_batteries):
-            pandapower.create_storage(net,self.battery_buses[i],self.p_batteries[i],self.energy_capacities[i],soc_percent = self.soc[i]/self.energy_capacities[i])
+            pandapower.create_storage(net, self.battery_buses[i], self.p_batteries[i], 
+                                      self.energy_capacities[i], soc_percent = self.soc[i] / self.energy_capacities[i])
         
         # Run powerflow
         try:
