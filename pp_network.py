@@ -12,8 +12,8 @@ class net_model:
         
         self.network_name = network_name
         if network_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
-            self.pp_net = pp.networks.create_synthetic_voltage_control_lv_network(network_class=str(network_name))
-            net = self.pp_net(network_name)
+            self.pp_net = pp.networks,create_synthetic_voltage_control_lv_network(network_class = network_name)
+            net = self.pp_net
         else: 
             self.pp_net = getattr(pp.networks,network_name)
             net = self.pp_net()
@@ -102,7 +102,10 @@ class net_model:
         
     def run_powerflow(self,check=False,zero_test = False):
     
-        net = self.pp_net()
+        if network_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
+            net = self.pp_net
+        else:
+            net = self.pp_net()
         
         # Apply loads
         p_load = self.load_realpowers
