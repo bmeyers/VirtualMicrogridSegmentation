@@ -175,6 +175,7 @@ class net_model:
             
         if extreme_test:
             net.bus.min_vm_pu = 0
+            net.bus.vm_kv = 0
 #             net.line.r_ohm_per_km = 0
 #             net.line.x_ohm_per_km = 0
 #             net.line.c_nf_per_km = np.inf
@@ -213,7 +214,9 @@ class net_model:
 #             print('Res_trafo: ',net.res_trafo)
 #             print('Res_ext_grid: ',net.res_ext_grid)
 
+            print('Bus: ',net.bus)
             print('Res_bus: ',net.res_bus)
+            
             print('Total real line and transformer losses: ',net.res_line.pl_kw.sum() + net.res_trafo.pl_kw.sum())
             print('Total reactive line and transformer losses: ',net.res_line.ql_kvar.sum()+net.res_trafo.ql_kvar.sum())
             print('Real sum res bus: ',net.res_bus.p_kw.sum())
