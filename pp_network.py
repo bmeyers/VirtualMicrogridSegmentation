@@ -8,7 +8,7 @@ class net_model:
     
     # The state of the network, powerflow, and reward
     
-    def __init__(self,network_name,zero_out_gens = False):
+    def __init__(self,network_name,zero_out_gens = False, zero_out_shunt = False):
         
         self.network_name = network_name
         if network_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
@@ -42,6 +42,7 @@ class net_model:
         self.gen_buses = []
         self.gen_real = []
         self.gen_react = []
+        self.gen_vmpu = []
         self.num_gen = net.gen.shape[0]
         if self.num_gen > 0:
             for i in range(self.num_gen):
@@ -49,6 +50,19 @@ class net_model:
                 if zero_out_gens:
                     self.gen_real = np.append(self.gen_real,0.0) 
                     self.gen_react = np.append(self.gen_react,0.0) 
+                    self.gen_vmpu = np.append(self.gen_vmpu,0.0)
+                    
+        self.zero_out_shunt = zero_out_shunt
+        self.shunt_buses = []
+        self.shunt_react = []
+        self.shunt_real = []
+        self.num_shunt = net.shunt.shape[0]
+        if self.num_shunt > 0:
+            for i in range(self.num_shunt):
+                self.shunt_buses = np.append(self.shunt_buses,net.shunt.bus[i])
+                if zero_out_shunt:
+                    self.shunt_react = np.append(self.shunt_react,0.0)
+                    self.shunt_real = np.append(self.shunt_real,0.0)
                         
         self.reward_val = 0
         
@@ -119,7 +133,7 @@ class net_model:
         return
         
         
-    def run_powerflow(self,check=False):
+    def run_powerflow(self,check=False,extreme_test=True):
     
         if self.network_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
             net = self.pp_net
@@ -139,10 +153,17 @@ class net_model:
         
  
         if self.num_gen > 0:
-            net.gen.min_q_var = 0 
-            net.gen.max_q_var = np.max(self.gen_react)
+            net.gen.min_q_kvar = self.gen_react
+            net.gen.max_q_kvar = 0 # Could make this a choice
+            net.gen.max_p_kw = 0
+            net.gen.min_p_kw = self.gen_real
             net.gen.p_kw = self.gen_real # Should be negative
             net.gen.sn_kva = np.sqrt(np.power(self.gen_real, 2) + np.power(self.gen_react, 2)) # Want to set p and q, not s
+#             net.gen.vm_pu = self.gen_vmpu
+            
+        if self.num_shunt > 0:
+            net.shunt.q_kvar = self.shunt_react
+            net.shunt.p_kw = self.shunt_real
 
         # Apply generation values to static generators --- add functionality for other generators still
         for i in range(self.num_sgen):
@@ -151,10 +172,18 @@ class net_model:
         for i in range(self.num_batteries):
             pandapower.create_storage(net, self.battery_buses[i], self.p_batteries[i], 
                                       self.energy_capacities[i], soc_percent = self.soc[i] / self.energy_capacities[i])
+            
+        if extreme_test:
+            net.bus.min_vm_pu = 0
+#             net.line.r_ohm_per_km = 0
+#             net.line.x_ohm_per_km = 0
+#             net.line.c_nf_per_km = np.inf
+#             net.line.g_us_per_km = np.inf
+            
         
         # Run powerflow
         try:
-            pp.runpp(net,enforce_q_lims = True)
+            pp.runpp(net,enforce_q_lims = True, calculate_voltage_angles=False, voltage_depend_loads = False)
         except:
             print('There was an error running the powerflow! pp.runpp() didnt work')
         
@@ -164,14 +193,34 @@ class net_model:
         # Could also measure the losses
         
         if check == True:  # If check == True then inspect all these objects that are local to this function
-            print('Loads everywhere: ',net.res_load)
+
+#             print('Load: ',net.load)
+#             print('Bus: ',net.bus)
+#             print('Line: ',net.line)
+#             print('Gen:', net.gen)
+#             print('Sgen: ',net.sgen)
+#             print('Shunt: ',net.shunt)
+#             print('Trafo: ',net.trafo)
+#             print('Ext_grid: ',net.ext_grid)
+            
+            
+#             print('Res_load: ',net.res_load)
+#             print('Res_bus: ',net.res_bus)
+#             print('Res_line: ',net.res_line)
+#             print('Res_gen:', net.res_gen)
+#             print('Res_sgen: ',net.res_sgen)
+#             print('Res_shunt: ',net.res_shunt)
+#             print('Res_trafo: ',net.res_trafo)
+#             print('Res_ext_grid: ',net.res_ext_grid)
+
             print('Res_bus: ',net.res_bus)
-            print('Res_line: ',net.res_line)
-            print('Net res_gen:', net.res_gen)
-            print('Net res sgen: ',net.res_sgen)
+            print('Total real line and transformer losses: ',net.res_line.pl_kw.sum() + net.res_trafo.pl_kw.sum())
+            print('Total reactive line and transformer losses: ',net.res_line.ql_kvar.sum()+net.res_trafo.ql_kvar.sum())
+            print('Real sum res bus: ',net.res_bus.p_kw.sum())
+            print('Reactive sum res bus: ',net.res_bus.q_kvar.sum())
         
-            print('Lines in: ',net.res_line.p_to_kw)
-            print('Lines out: ',net.res_line.p_from_kw)
+#             print('Res_: ',net.res_line.p_to_kw)
+#             print('Lines out: ',net.res_line.p_from_kw)
         return
     
     def calc_reward(self, eps = 0.01):
