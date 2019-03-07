@@ -4,7 +4,7 @@ import pandapower as pp
 import pandapower.networks
 
 
-class NetModel:
+class NetModel(object):
     """Building and interacting with a network model to simulate power flow.
 
     In this class we model all of the network component including loads, generators, batteries, lines, buses, and
