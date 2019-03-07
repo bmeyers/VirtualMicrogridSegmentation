@@ -158,7 +158,7 @@ class NetModel(object):
 
         self.net.gen.p_kw = new_gen_p
 
-    def add_battery(self, bus_number, p_init, energy_capacity, init_soc,
+    def add_battery(self, bus_number, p_init, energy_capacity, init_soc=0.5,
                     max_p=50, min_p=-50, eff=1.0, capital_cost=0, min_e=0.):
         """Change the network by adding a battery / storage unit.
 
