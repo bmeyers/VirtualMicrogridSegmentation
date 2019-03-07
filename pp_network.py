@@ -13,7 +13,7 @@ class NetModel(object):
     """
     
     def __init__(self, net_given=None, network_name='rural_1',
-                 zero_out_gen_shunt_storage=True):
+                 zero_out_gen_shunt_storage=True, tstep=1./60):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
@@ -42,6 +42,8 @@ class NetModel(object):
             self.net.shunt.in_service = False
 
         self.reward_val = 0
+
+        self.tstep = tstep
 
     def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
         """Change the network by adding a static generator.
@@ -211,9 +213,20 @@ class NetModel(object):
             The storage values in the network object are updated.
         """
         soc = self.net.storage.soc_percent
-        self.net.storage.p_kw = battery_powers
-        soc_raw = self.net.storage.soc_percent + (battery_powers * dt / self.net.storage.max_e_kwh)
-        self.net.storage.soc_percent = np.clip(soc_raw, 0.0, 1.0)
+        cap = self.net.storage.max_e_kwh
+        eff = self.net.storage.eff
+        pmin = self.net.storage.min_p_kw
+        pmin_soc = -1 * soc * cap * eff / self.tstep
+        pmin = np.max([pmin, pmin_soc], axis=0)
+        pmax = self.net.storage.max_p_kw
+        pmax_soc = (1. - soc) * cap / (eff * self.tstep)
+        pmax = np.min([pmax, pmax_soc], axis=0)
+        ps = np.clip(battery_powers, pmin, pmax)
+        self.net.storage.p_kw = ps
+        soc_next = soc + ps * self.tstep * eff / cap
+        msk = ps < 0
+        soc_next[msk] = (soc + ps * self.tstep / (eff * cap))[msk]
+        self.net.storage.soc_percent = soc_next
 
     def run_powerflow(self):
         """Evaluate the power flow. Results are stored in the results matrices
