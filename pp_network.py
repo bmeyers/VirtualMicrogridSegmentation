@@ -1,24 +1,27 @@
 import numpy as np
 import pandas as pd
 import pandapower as pp
-import pandapower.networks
+from pandapower.networks import create_synthetic_voltage_control_lv_network as mknet
 
 
 class NetModel(object):
     """Building and interacting with a network model to simulate power flow.
 
-    In this class we model all of the network component including loads, generators, batteries, lines, buses, and
-    transformers. The state of each is tracked in a pandapower network object.
+    In this class we model all of the network component including loads,
+    generators, batteries, lines, buses, and transformers. The state of each is
+    tracked in a pandapower network object.
     """
     
-    def __init__(self, net_given=None, network_name='rural_1', zero_out_gen_shunt_storage=True):
-        """Initialize attributes of the object and zero out certain components in the standard test network."""
+    def __init__(self, net_given=None, network_name='rural_1',
+                 zero_out_gen_shunt_storage=True):
+        """Initialize attributes of the object and zero out certain components
+        in the standard test network."""
 
         if net_given is not None:
             self.net = net_given
             self.network_name = 'custom_network'
         else:
-            self.net = pp.networks.create_synthetic_voltage_control_lv_network(network_class=network_name)
+            self.net = mknet(network_class=network_name)
             self.network_name = network_name
 
         if zero_out_gen_shunt_storage:
@@ -57,9 +60,10 @@ class NetModel(object):
         net: object
             The network object is updated
         """
-        pandapower.create_sgen(self.net, bus_number, init_real_power, init_react_power)
+        pp.create_sgen(self.net, bus_number, init_real_power, init_react_power)
 
-    def add_generation(self, bus_number, init_real_power, set_limits=False, min_p_kw=0, max_p_kw=0, min_q_kvar=0,
+    def add_generation(self, bus_number, init_real_power, set_limits=False,
+                       min_p_kw=0, max_p_kw=0, min_q_kvar=0,
                        max_q_kvar=0):
         """Change the network by adding a traditional generator.
 
@@ -80,16 +84,18 @@ class NetModel(object):
             The network object is updated
         """
         if set_limits:
-            pandapower.create_gen(self.net, bus_number, init_real_power, min_p_kw=min_p_kw, max_p_kw=max_p_kw,
+            pp.create_gen(self.net, bus_number, init_real_power,
+                                  min_p_kw=min_p_kw, max_p_kw=max_p_kw,
                                   min_q_kvar=min_q_kvar, max_q_kvar=max_q_kvar)
         else:
-            pandapower.create_gen(self.net, bus_number, init_real_power)
+            pp.create_gen(self.net, bus_number, init_real_power)
 
     def update_loads(self, new_p, new_q):
         """Update the loads in the network.
 
-        This method assumes that the orders match, i.e. the order the buses in self.net.load.bus matches where the loads
-        in new_p and new_q should be applied based on their indexing.
+        This method assumes that the orders match, i.e. the order the buses in
+        self.net.load.bus matches where the loads in new_p and new_q should be
+        applied based on their indexing.
 
         Parameters
         ----------
@@ -108,13 +114,15 @@ class NetModel(object):
     def update_static_generation(self, new_sgen_p, new_sgen_q):
         """Update the static generation in the network.
 
-        This method assumes that the orders match, i.e. the order the buses in self.net.sgen.bus matches where the
-        generation values in new_sgen_p and new_sgen_q should be applied based on their indexing.
+        This method assumes that the orders match, i.e. the order the buses in
+        self.net.sgen.bus matches where the generation values in new_sgen_p and
+        new_sgen_q should be applied based on their indexing.
 
         Parameters
         ----------
         new_sgen_p, new_sgen_q: array_like
-            New values for the real and reactive static generation, shape (number of static generators, 1).
+            New values for the real and reactive static generation, shape
+            (number of static generators, 1).
 
         Attributes
         ----------
@@ -128,13 +136,15 @@ class NetModel(object):
     def update_generation(self, new_gen_p):
         """Update the traditional (not static) generation in the network.
 
-        This method assumes that the orders match, i.e. the order the buses in self.net.gen.bus matches where the
-        generation values in new_gen_p should be applied based on their indexing.
+        This method assumes that the orders match, i.e. the order the buses in
+        self.net.gen.bus matches where the generation values in new_gen_p
+        should be applied based on their indexing.
 
         Parameters
         ----------
         new_gen_p: array_like
-            New values for the real and reactive generation, shape (number of traditional generators, 1).
+            New values for the real and reactive generation, shape (number of
+            traditional generators, 1).
 
         Attributes
         ----------
@@ -164,14 +174,16 @@ class NetModel(object):
             The network object is updated
         """
 
-        pandapower.create_storage(self.net, bus_number, init_p,
-                                  init_energy_capacity, soc_percent=init_soc / init_energy_capacity)
+        pp.create_storage(self.net, bus_number, init_p,
+                                  init_energy_capacity,
+                                  soc_percent=init_soc / init_energy_capacity)
     
     def update_batteries(self, battery_powers, dt):
         """Update the batteries / storage units in the network.
 
-        This method assumes that the orders match, i.e. the order the buses in self.net.gen.bus matches where the
-        generation values in new_gen_p should be applied based on their indexing.
+        This method assumes that the orders match, i.e. the order the buses in
+        self.net.gen.bus matches where the generation values in new_gen_p
+        should be applied based on their indexing.
 
         Parameters
         ----------
@@ -186,27 +198,31 @@ class NetModel(object):
             The storage values in the network object are updated.
         """
         self.net.storage.p_kw = battery_powers
-        self.net.storage.soc_percent = np.clip(self.net.storage.soc_percent +
-                                               (battery_powers*dt / self.net.storage.max_e_kwh), 0.0, 1.0)
+        soc_raw = self.net.storage.soc_percent + (battery_powers * dt / self.net.storage.max_e_kwh)
+        self.net.storage.soc_percent = np.clip(soc_raw, 0.0, 1.0)
 
     def run_powerflow(self):
-        """Evaluate the power flow. Results are stored in the results matrices of the net object, e.g. self.net.res_bus.
+        """Evaluate the power flow. Results are stored in the results matrices
+        of the net object, e.g. self.net.res_bus.
 
         Attributes
         ----------
         self.net: object
-            The network matrices are updated to reflect the results. Specifically: self.net.res_bus, self.net.res_line,
-            self.net.res_gen, self.net.res_sgen, self.net.res_trafo, self.net.res_storage.
+            The network matrices are updated to reflect the results.
+            Specifically: self.net.res_bus, self.net.res_line, self.net.res_gen,
+            self.net.res_sgen, self.net.res_trafo, self.net.res_storage.
         """
         try:
-            pp.runpp(self.net, enforce_q_lims=True, calculate_voltage_angles=False, voltage_depend_loads=False)
+            pp.runpp(self.net, enforce_q_lims=True,
+                     calculate_voltage_angles=False, voltage_depend_loads=False)
         except:
             print('There was an error running the powerflow! pp.runpp() didnt work')
 
     def calculate_reward(self, eps=0.01):
         """Calculate the reward associated with a power flow result.
 
-        We count zero flow through the line as when the power flowing into the line is equal to the power lost in it.
+        We count zero flow through the line as when the power flowing into the
+        line is equal to the power lost in it.
 
         Parameters
         ----------
@@ -220,10 +236,11 @@ class NetModel(object):
 
         self.reward_val = 0.0
         for i in range(self.net.line.shape[0]):
-            check1 = ((np.abs(self.net.res_line.p_to_kw.values[i] - self.net.res_line.pl_kw.values[i]) < eps or
-                       np.abs(self.net.res_line.p_from_kw.values[i] - self.net.res_line.pl_kw.values[i]) < eps))
-
-            check2 = ((np.abs(self.net.res_line.q_to_kvar.values[i] - self.net.res_line.ql_kvar.values[i]) < eps or
-                       np.abs(self.net.res_line.q_from_kvar.values[i] - self.net.res_line.ql_kvar.values[i]) < eps))
+            cond1a = np.abs(self.net.res_line.p_to_kw.values[i] - self.net.res_line.pl_kw.values[i]) < eps
+            cond1b = np.abs(self.net.res_line.p_from_kw.values[i] - self.net.res_line.pl_kw.values[i]) < eps
+            check1 = (cond1a or cond1b)
+            cond2a = np.abs(self.net.res_line.q_to_kvar.values[i] - self.net.res_line.ql_kvar.values[i]) < eps
+            cond2b = np.abs(self.net.res_line.q_from_kvar.values[i] - self.net.res_line.ql_kvar.values[i]) < eps
+            check2 = (cond2a or cond2b)
             if check1 and check2:
                 self.reward_val += 1.0
