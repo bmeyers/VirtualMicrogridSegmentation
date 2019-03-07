@@ -154,19 +154,28 @@ class NetModel(object):
 
         self.net.gen.p_kw = new_gen_p
 
-    def add_battery(self, bus_number, init_p, init_energy_capacity, init_soc):
+    def add_battery(self, bus_number, p_init, energy_capacity, init_soc,
+                    max_p=50, min_p=-50, eff=1.0):
         """Change the network by adding a battery / storage unit.
 
         Parameters
         ----------
         bus_number: int
             The bus at which the generator should be added
-        init_p: float
-            The real power flow to/from the battery for initialization.
-        init_energy_capacity: float
+        p_init: float
+            The initial real power flow to (positive) / from (negative) the
+            battery for initialization. (Typically zero)
+        energy_capacity: float
             The energy capacity of the battery.
         init_soc: float
-            The initial state of charge.
+            The initial state of charge (between 0 and 1)
+        max_p: float
+            The maximum power *consumption* by the battery (positive)
+        min_p: float
+            The maximum power *production* by the battery (negative)
+        eff: float
+            The efficiency of the battery, assumed to be the same of import and
+            export (between 0 and 1)
 
         Attributes
         ----------
@@ -174,9 +183,13 @@ class NetModel(object):
             The network object is updated
         """
 
-        pp.create_storage(self.net, bus_number, init_p,
-                                  init_energy_capacity,
-                                  soc_percent=init_soc / init_energy_capacity)
+        pp.create_storage(self.net, bus_number, p_init, energy_capacity,
+                          soc_percent=init_soc, max_p_kw=max_p, min_p_kw=min_p)
+        if 'eff' not in self.net.storage.columns:
+            self.net.storage['eff'] = eff
+        else:
+            idx = self.net.storage.index[-1]
+            self.net.storage.loc[idx, 'eff'] = eff
     
     def update_batteries(self, battery_powers, dt):
         """Update the batteries / storage units in the network.
@@ -197,6 +210,7 @@ class NetModel(object):
         self.net.storage: object
             The storage values in the network object are updated.
         """
+        soc = self.net.storage.soc_percent
         self.net.storage.p_kw = battery_powers
         soc_raw = self.net.storage.soc_percent + (battery_powers * dt / self.net.storage.max_e_kwh)
         self.net.storage.soc_percent = np.clip(soc_raw, 0.0, 1.0)
