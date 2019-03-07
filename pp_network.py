@@ -13,7 +13,8 @@ class NetModel(object):
     """
     
     def __init__(self, net_given=None, network_name='rural_1',
-                 zero_out_gen_shunt_storage=True):
+                 zero_out_gen_shunt_storage=True, tstep=1./60,
+                 net_zero_reward=1.0):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
@@ -42,6 +43,9 @@ class NetModel(object):
             self.net.shunt.in_service = False
 
         self.reward_val = 0
+
+        self.tstep = tstep
+        self.net_zero_reward = net_zero_reward
 
     def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
         """Change the network by adding a static generator.
@@ -154,19 +158,28 @@ class NetModel(object):
 
         self.net.gen.p_kw = new_gen_p
 
-    def add_battery(self, bus_number, init_p, init_energy_capacity, init_soc):
+    def add_battery(self, bus_number, p_init, energy_capacity, init_soc=0.5,
+                    max_p=50, min_p=-50, eff=1.0, capital_cost=0, min_e=0.):
         """Change the network by adding a battery / storage unit.
 
         Parameters
         ----------
         bus_number: int
             The bus at which the generator should be added
-        init_p: float
-            The real power flow to/from the battery for initialization.
-        init_energy_capacity: float
+        p_init: float
+            The initial real power flow to (positive) / from (negative) the
+            battery for initialization. (Typically zero)
+        energy_capacity: float
             The energy capacity of the battery.
         init_soc: float
-            The initial state of charge.
+            The initial state of charge (between 0 and 1)
+        max_p: float
+            The maximum power *consumption* by the battery (positive)
+        min_p: float
+            The maximum power *production* by the battery (negative)
+        eff: float
+            The efficiency of the battery, assumed to be the same of import and
+            export (between 0 and 1)
 
         Attributes
         ----------
@@ -174,9 +187,19 @@ class NetModel(object):
             The network object is updated
         """
 
-        pp.create_storage(self.net, bus_number, init_p,
-                                  init_energy_capacity,
-                                  soc_percent=init_soc / init_energy_capacity)
+        pp.create_storage(self.net, bus_number, p_init, energy_capacity,
+                          soc_percent=init_soc, max_p_kw=max_p, min_p_kw=min_p,
+                          min_e_kwh=min_e)
+        if 'eff' not in self.net.storage.columns:
+            self.net.storage['eff'] = eff
+        else:
+            idx = self.net.storage.index[-1]
+            self.net.storage.loc[idx, 'eff'] = eff
+        if 'cap_cost' not in self.net.storage.columns:
+            self.net.storage['cap_cost'] = capital_cost
+        else:
+            idx = self.net.storage.index[-1]
+            self.net.storage.loc[idx, 'capital_cost'] = capital_cost
     
     def update_batteries(self, battery_powers, dt):
         """Update the batteries / storage units in the network.
@@ -197,9 +220,21 @@ class NetModel(object):
         self.net.storage: object
             The storage values in the network object are updated.
         """
-        self.net.storage.p_kw = battery_powers
-        soc_raw = self.net.storage.soc_percent + (battery_powers * dt / self.net.storage.max_e_kwh)
-        self.net.storage.soc_percent = np.clip(soc_raw, 0.0, 1.0)
+        soc = self.net.storage.soc_percent
+        cap = self.net.storage.max_e_kwh
+        eff = self.net.storage.eff
+        pmin = self.net.storage.min_p_kw
+        pmin_soc = -1 * soc * cap * eff / self.tstep
+        pmin = np.max([pmin, pmin_soc], axis=0)
+        pmax = self.net.storage.max_p_kw
+        pmax_soc = (1. - soc) * cap / (eff * self.tstep)
+        pmax = np.min([pmax, pmax_soc], axis=0)
+        ps = np.clip(battery_powers, pmin, pmax)
+        self.net.storage.p_kw = ps
+        soc_next = soc + ps * self.tstep * eff / cap
+        msk = ps < 0
+        soc_next[msk] = (soc + ps * self.tstep / (eff * cap))[msk]
+        self.net.storage.soc_percent = soc_next
 
     def run_powerflow(self):
         """Evaluate the power flow. Results are stored in the results matrices
@@ -222,7 +257,13 @@ class NetModel(object):
         """Calculate the reward associated with a power flow result.
 
         We count zero flow through the line as when the power flowing into the
-        line is equal to the power lost in it.
+        line is equal to the power lost in it. This gives a positive reward.
+
+        A cost (negative reward) is incurred for running the batteries, based
+        on the capital cost of the battery and the expected lifetime (currently
+        hardcoded to 1000 cycles). So, if the capital cost of the battery is set
+        to zero, then producing or consuming power with the battery is free to
+        use.
 
         Parameters
         ----------
@@ -243,4 +284,13 @@ class NetModel(object):
             cond2b = np.abs(self.net.res_line.q_from_kvar.values[i] - self.net.res_line.ql_kvar.values[i]) < eps
             check2 = (cond2a or cond2b)
             if check1 and check2:
-                self.reward_val += 1.0
+                self.reward_val += self.net_zero_reward
+
+        # Costs for running batteries
+        cap_costs = self.net.storage.capital_cost
+        max_e = self.net.storage.max_e_kwh
+        min_e = self.net.storage.min_e_kwh
+        betas = cap_costs / (2 * 1000 * (max_e - min_e))
+        incurred_costs = betas * np.abs(self.net.storage.p_kw)
+        for c in incurred_costs:
+            self.reward_val -= c
