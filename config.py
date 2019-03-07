@@ -23,7 +23,7 @@ class config_sixbus_poc:
         # parameters for the policy and baseline models
         self.n_layers               = 1
         self.layer_size             = 16
-        self.activation             = N
+        self.activation             = None
 
         # since we start new episodes for each batch
         assert self.max_ep_len <= self.batch_size
