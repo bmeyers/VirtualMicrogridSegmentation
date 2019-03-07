@@ -13,7 +13,8 @@ class NetModel(object):
     """
     
     def __init__(self, net_given=None, network_name='rural_1',
-                 zero_out_gen_shunt_storage=True, tstep=1./60):
+                 zero_out_gen_shunt_storage=True, tstep=1./60,
+                 net_zero_reward=1.0):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
@@ -44,6 +45,7 @@ class NetModel(object):
         self.reward_val = 0
 
         self.tstep = tstep
+        self.net_zero_reward = net_zero_reward
 
     def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
         """Change the network by adding a static generator.
@@ -157,7 +159,7 @@ class NetModel(object):
         self.net.gen.p_kw = new_gen_p
 
     def add_battery(self, bus_number, p_init, energy_capacity, init_soc,
-                    max_p=50, min_p=-50, eff=1.0):
+                    max_p=50, min_p=-50, eff=1.0, capital_cost=0, min_e=0.):
         """Change the network by adding a battery / storage unit.
 
         Parameters
@@ -186,12 +188,18 @@ class NetModel(object):
         """
 
         pp.create_storage(self.net, bus_number, p_init, energy_capacity,
-                          soc_percent=init_soc, max_p_kw=max_p, min_p_kw=min_p)
+                          soc_percent=init_soc, max_p_kw=max_p, min_p_kw=min_p,
+                          min_e_kwh=min_e)
         if 'eff' not in self.net.storage.columns:
             self.net.storage['eff'] = eff
         else:
             idx = self.net.storage.index[-1]
             self.net.storage.loc[idx, 'eff'] = eff
+        if 'cap_cost' not in self.net.storage.columns:
+            self.net.storage['cap_cost'] = capital_cost
+        else:
+            idx = self.net.storage.index[-1]
+            self.net.storage.loc[idx, 'capital_cost'] = capital_cost
     
     def update_batteries(self, battery_powers, dt):
         """Update the batteries / storage units in the network.
@@ -249,7 +257,13 @@ class NetModel(object):
         """Calculate the reward associated with a power flow result.
 
         We count zero flow through the line as when the power flowing into the
-        line is equal to the power lost in it.
+        line is equal to the power lost in it. This gives a positive reward.
+
+        A cost (negative reward) is incurred for running the batteries, based
+        on the capital cost of the battery and the expected lifetime (currently
+        hardcoded to 1000 cycles). So, if the capital cost of the battery is set
+        to zero, then producing or consuming power with the battery is free to
+        use.
 
         Parameters
         ----------
@@ -270,4 +284,13 @@ class NetModel(object):
             cond2b = np.abs(self.net.res_line.q_from_kvar.values[i] - self.net.res_line.ql_kvar.values[i]) < eps
             check2 = (cond2a or cond2b)
             if check1 and check2:
-                self.reward_val += 1.0
+                self.reward_val += self.net_zero_reward
+
+        # Costs for running batteries
+        cap_costs = self.net.storage.capital_cost
+        max_e = self.net.storage.max_e_kwh
+        min_e = self.net.storage.min_e_kwh
+        betas = cap_costs / (2 * 1000 * (max_e - min_e))
+        incurred_costs = betas * np.abs(self.net.storage.p_kw)
+        for c in incurred_costs:
+            self.reward_val -= c
