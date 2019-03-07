@@ -1,0 +1,8 @@
+numpy
+pandas
+jupyter
+pandapower
+packaging
+plotly
+python-igraph
+numba
