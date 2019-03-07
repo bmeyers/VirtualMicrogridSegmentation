@@ -4,238 +4,226 @@ import pandapower as pp
 import pandapower.networks
 
 
-class net_model:
-    
-    # The state of the network, powerflow, and reward
-    
-    def __init__(self,network_name,zero_out_gens = False, zero_out_shunt = False):
-        
-        self.network_name = network_name
-        if network_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
-            self.pp_net = pp.networks.create_synthetic_voltage_control_lv_network(network_class = network_name)
-            net = self.pp_net
-        else: 
-            self.pp_net = getattr(pp.networks,network_name)
-            net = self.pp_net()
-            
+class NetModel:
+    """Building and interacting with a network model to simulate power flow.
 
-        self.num_bus = net.bus.shape[0] # How many buses are there
-        self.loadbuses = net.load.bus.values # Which ones have loads on them
-        self.num_loadbus = net.load.bus.shape[0] # How many load buses are there
+    In this class we model all of the network component including loads, generators, batteries, lines, buses, and
+    transformers. The state of each is tracked in a pandapower network object.
+    """
+    
+    def __init__(self, net_given=None, network_name='rural_1', zero_out_gen_shunt_storage=True):
+        """Initialize attributes of the object and zero out certain components in the standard test network."""
 
-        self.load_realpowers = np.zeros(self.num_loadbus)
-        self.load_reactivepowers = np.zeros(self.num_loadbus)
-        
-        # Number of static generators (our simple model of a generator)
-        self.sgen_buses = []
-        self.sgen_real = []
-        self.sgen_react = []
-        self.num_sgen = net.sgen.shape[0] 
-        self.num_sgen_original = net.sgen.shape[0]
-        if self.num_sgen > 0:
-            for i in range(self.num_sgen):
-                self.sgen_buses = np.append(self.sgen_buses,net.sgen.bus[i])
-                self.sgen_real = np.append(self.sgen_real,0.0) 
-                self.sgen_react = np.append(self.sgen_react,0.0) 
-        
-        self.zero_out_gens = zero_out_gens
-        self.gen_buses = []
-        self.gen_real = []
-        self.gen_react = []
-        self.gen_vmpu = []
-        self.num_gen = net.gen.shape[0]
-        if self.num_gen > 0:
-            for i in range(self.num_gen):
-                self.gen_buses = np.append(self.gen_buses,net.gen.bus[i])
-                if zero_out_gens:
-                    self.gen_real = np.append(self.gen_real,0.0) 
-                    self.gen_react = np.append(self.gen_react,0.0) 
-                    self.gen_vmpu = np.append(self.gen_vmpu,0.0)
-                    
-        self.zero_out_shunt = zero_out_shunt
-        self.shunt_buses = []
-        self.shunt_react = []
-        self.shunt_real = []
-        self.num_shunt = net.shunt.shape[0]
-        if self.num_shunt > 0:
-            for i in range(self.num_shunt):
-                self.shunt_buses = np.append(self.shunt_buses,net.shunt.bus[i])
-                if zero_out_shunt:
-                    self.shunt_react = np.append(self.shunt_react,0.0)
-                    self.shunt_real = np.append(self.shunt_real,0.0)
-                        
-        self.reward_val = 0
-        
-        self.num_lines = net.line.shape[0]
-        self.p_lineflow = 0
-        self.q_lineflow = 0
-        
-        # Batteries
-        self.num_batteries = 0
-        self.soc = []
-        self.battery_buses = []
-        self.p_batteries = []
-        self.energy_capacities = []
-        
-        return
-        
-    def add_sgeneration(self,bus_number,init_real_power,init_react_power = 0.0):
-        
-        # Add where this generation unit is to the list
-        self.sgen_buses = np.append(self.sgen_buses, bus_number)
-        self.num_sgen = self.sgen_buses.shape[0]
-        # Add this generation units value to the list
-        self.sgen_real = np.append(self.sgen_real, init_real_power)
-        self.sgen_react = np.append(self.sgen_react, init_react_power)
-        
-        return
-    
-    def add_generation():
-        
-        print('Add functionality to have a non static generator added')
-        
-        return
-
-        
-    def update_loads(self,new_p, new_q):
-        
-        self.load_realpowers = new_p
-        self.load_reactivepowers = new_q
-        
-        return
-    
-
-    def update_generation(self,new_gen_p, new_gen_q = False):
-        
-        self.sgen_real = new_gen_p
-        if new_gen_q:
-            self.sgen_react = new_gen_q
-        
-        return
-    
-    def add_battery(self,bus_number,init_p,init_energy_capacity,init_soc):
-        
-        self.num_batteries += 1
-        self.battery_buses = np.append(self.battery_buses,bus_number)
-        self.p_batteries = np.append(self.p_batteries,init_p)
-        self.energy_capacities = np.append(self.energy_capacities,init_energy_capacity)
-        self.soc = np.append(self.soc,init_soc)
-        
-        return
-    
-    def update_batteries(self,battery_powers,dt):
-        
-        # This is the action
-        
-        self.p_batteries = battery_powers
-        self.soc = np.clip(self.soc + battery_powers*dt, 0, self.energy_capacities)
-        
-        return
-        
-        
-    def run_powerflow(self,check=False,extreme_test=True):
-    
-        if self.network_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
-            net = self.pp_net
+        if net_given is not None:
+            self.net = net_given
+            self.network_name = 'custom_network'
         else:
-            net = self.pp_net()
-        
-        # Apply loads
-        p_load = self.load_realpowers
-        q_load = self.load_reactivepowers
-        
-        df = net.load
-        for i in range(self.num_loadbus):
-            df.loc[lambda df: df['bus'] == self.loadbuses[i], 'p_kw'] = p_load[i]
-            df.loc[lambda df: df['bus'] == self.loadbuses[i], 'q_kvar'] = q_load[i]
+            self.net = pp.networks.create_synthetic_voltage_control_lv_network(network_class=network_name)
+            self.network_name = network_name
 
-        net.load = df
-        
- 
-        if self.num_gen > 0:
-            net.gen.min_q_kvar = self.gen_react
-            net.gen.max_q_kvar = 0 # Could make this a choice
-            net.gen.max_p_kw = 0
-            net.gen.min_p_kw = self.gen_real
-            net.gen.p_kw = self.gen_real # Should be negative
-            net.gen.sn_kva = np.sqrt(np.power(self.gen_real, 2) + np.power(self.gen_react, 2)) # Want to set p and q, not s
-#             net.gen.vm_pu = self.gen_vmpu
-            
-        if self.num_shunt > 0:
-            net.shunt.q_kvar = self.shunt_react
-            net.shunt.p_kw = self.shunt_real
+        if zero_out_gen_shunt_storage:
 
-        # Apply generation values to static generators --- add functionality for other generators still
-        for i in range(self.num_sgen):
-            pandapower.create_sgen(net, self.sgen_buses[i], self.sgen_real[i], self.sgen_react[i])
-        # Apply storage information
-        for i in range(self.num_batteries):
-            pandapower.create_storage(net, self.battery_buses[i], self.p_batteries[i], 
-                                      self.energy_capacities[i], soc_percent = self.soc[i] / self.energy_capacities[i])
-            
-        if extreme_test:
-            net.bus.min_vm_pu = 0
-            net.bus.vm_kv = 0
-#             net.line.r_ohm_per_km = 0
-#             net.line.x_ohm_per_km = 0
-#             net.line.c_nf_per_km = np.inf
-#             net.line.g_us_per_km = np.inf
-            
-        
-        # Run powerflow
+            self.net.sgen.p_kw = 0
+            self.net.sgen.q_kvar = 0
+
+            self.net.gen.p_kw = 0
+            self.net.gen.q_kvar = 0
+            self.net.gen.min_p_kw = 0
+            self.net.gen.max_p_kw = 0
+            self.net.gen.min_q_kvar = 0
+            self.net.gen.max_q_kvar = 0
+            self.net.gen.sn_kva = 0
+
+            self.net.shunt.p_kw = 0
+            self.net.shunt.q_kvar = 0
+            self.net.shunt.in_service = False
+
+        self.reward_val = 0
+
+    def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
+        """Change the network by adding a static generator.
+
+        Parameters
+        ----------
+        bus_number: int
+            The bus at which the static generator should be added
+        init_real_power: float
+            The real power generation of the static generator for initialization.
+        init_react_power: float
+            The reactive power generation of the static generator for initialization.
+
+        Attributes
+        ----------
+        net: object
+            The network object is updated
+        """
+        pandapower.create_sgen(self.net, bus_number, init_real_power, init_react_power)
+
+    def add_generation(self, bus_number, init_real_power, set_limits=False, min_p_kw=0, max_p_kw=0, min_q_kvar=0,
+                       max_q_kvar=0):
+        """Change the network by adding a traditional generator.
+
+        Parameters
+        ----------
+        bus_number: int
+            The bus at which the generator should be added
+        init_real_power: float
+            The real power generation of the generator for initialization.
+        set_limits: bool
+            Whether or not the initialization includes limits on the real and reactive power flows.
+        min_p_kw, max_p_kw, min_q_kvar, max_q_kvar: float
+            Power limits on the generator.
+
+        Attributes
+        ----------
+        net: object
+            The network object is updated
+        """
+        if set_limits:
+            pandapower.create_gen(self.net, bus_number, init_real_power, min_p_kw=min_p_kw, max_p_kw=max_p_kw,
+                                  min_q_kvar=min_q_kvar, max_q_kvar=max_q_kvar)
+        else:
+            pandapower.create_gen(self.net, bus_number, init_real_power)
+
+    def update_loads(self, new_p, new_q):
+        """Update the loads in the network.
+
+        This method assumes that the orders match, i.e. the order the buses in self.net.load.bus matches where the loads
+        in new_p and new_q should be applied based on their indexing.
+
+        Parameters
+        ----------
+        new_p, new_q: array_like
+            New values for the real and reactive load powers, shape (number of load buses, 1).
+
+        Attributes
+        ----------
+        self.net.load: object
+            The load values in the network object are updated.
+        """
+
+        self.net.load.p_kw = new_p
+        self.net.load.q_kvar = new_q
+
+    def update_static_generation(self, new_sgen_p, new_sgen_q):
+        """Update the static generation in the network.
+
+        This method assumes that the orders match, i.e. the order the buses in self.net.sgen.bus matches where the
+        generation values in new_sgen_p and new_sgen_q should be applied based on their indexing.
+
+        Parameters
+        ----------
+        new_sgen_p, new_sgen_q: array_like
+            New values for the real and reactive static generation, shape (number of static generators, 1).
+
+        Attributes
+        ----------
+        self.net.sgen: object
+            The static generation values in the network object are updated.
+        """
+
+        self.net.sgen.p_kw = new_sgen_p
+        self.net.sgen.q_kvar = new_sgen_q
+
+    def update_generation(self, new_gen_p):
+        """Update the traditional (not static) generation in the network.
+
+        This method assumes that the orders match, i.e. the order the buses in self.net.gen.bus matches where the
+        generation values in new_gen_p should be applied based on their indexing.
+
+        Parameters
+        ----------
+        new_gen_p: array_like
+            New values for the real and reactive generation, shape (number of traditional generators, 1).
+
+        Attributes
+        ----------
+        self.net.gen: object
+            The traditional generation values in the network object are updated.
+        """
+
+        self.net.gen.p_kw = new_gen_p
+
+    def add_battery(self, bus_number, init_p, init_energy_capacity, init_soc):
+        """Change the network by adding a battery / storage unit.
+
+        Parameters
+        ----------
+        bus_number: int
+            The bus at which the generator should be added
+        init_p: float
+            The real power flow to/from the battery for initialization.
+        init_energy_capacity: float
+            The energy capacity of the battery.
+        init_soc: float
+            The initial state of charge.
+
+        Attributes
+        ----------
+        net: object
+            The network object is updated
+        """
+
+        pandapower.create_storage(self.net, bus_number, init_p,
+                                  init_energy_capacity, soc_percent=init_soc / init_energy_capacity)
+    
+    def update_batteries(self, battery_powers, dt):
+        """Update the batteries / storage units in the network.
+
+        This method assumes that the orders match, i.e. the order the buses in self.net.gen.bus matches where the
+        generation values in new_gen_p should be applied based on their indexing.
+
+        Parameters
+        ----------
+        battery_powers: array_like
+            The power flow into / out of each battery, shape (number of traditional generators, 1).
+        dt: float
+            The time duration of this power flow in hours.
+
+        Attributes
+        ----------
+        self.net.storage: object
+            The storage values in the network object are updated.
+        """
+        self.net.storage.p_kw = battery_powers
+        self.net.storage.soc_percent = np.clip(self.net.storage.soc_percent +
+                                               (battery_powers*dt / self.net.storage.max_e_kwh), 0.0, 1.0)
+
+    def run_powerflow(self):
+        """Evaluate the power flow. Results are stored in the results matrices of the net object, e.g. self.net.res_bus.
+
+        Attributes
+        ----------
+        self.net: object
+            The network matrices are updated to reflect the results. Specifically: self.net.res_bus, self.net.res_line,
+            self.net.res_gen, self.net.res_sgen, self.net.res_trafo, self.net.res_storage.
+        """
         try:
-            pp.runpp(net,enforce_q_lims = True, calculate_voltage_angles=False, voltage_depend_loads = False)
+            pp.runpp(self.net, enforce_q_lims=True, calculate_voltage_angles=False, voltage_depend_loads=False)
         except:
             print('There was an error running the powerflow! pp.runpp() didnt work')
-        
-        # Collect results
-        self.p_lineflow = net.res_line.p_to_kw
-        self.q_lineflow = net.res_line.q_to_kvar
-        # Could also measure the losses
-        
-        if check == True:  # If check == True then inspect all these objects that are local to this function
 
-#             print('Load: ',net.load)
-#             print('Bus: ',net.bus)
-#             print('Line: ',net.line)
-#             print('Gen:', net.gen)
-#             print('Sgen: ',net.sgen)
-#             print('Shunt: ',net.shunt)
-#             print('Trafo: ',net.trafo)
-#             print('Ext_grid: ',net.ext_grid)
-            
-            
-#             print('Res_load: ',net.res_load)
-#             print('Res_bus: ',net.res_bus)
-#             print('Res_line: ',net.res_line)
-#             print('Res_gen:', net.res_gen)
-#             print('Res_sgen: ',net.res_sgen)
-#             print('Res_shunt: ',net.res_shunt)
-#             print('Res_trafo: ',net.res_trafo)
-#             print('Res_ext_grid: ',net.res_ext_grid)
+    def calculate_reward(self, eps=0.01):
+        """Calculate the reward associated with a power flow result.
 
-            print('Bus: ',net.bus)
-            print('Res_bus: ',net.res_bus)
-            
-            print('Total real line and transformer losses: ',net.res_line.pl_kw.sum() + net.res_trafo.pl_kw.sum())
-            print('Total reactive line and transformer losses: ',net.res_line.ql_kvar.sum()+net.res_trafo.ql_kvar.sum())
-            print('Real sum res bus: ',net.res_bus.p_kw.sum())
-            print('Reactive sum res bus: ',net.res_bus.q_kvar.sum())
-        
-#             print('Res_: ',net.res_line.p_to_kw)
-#             print('Lines out: ',net.res_line.p_from_kw)
-        return
-    
-    def calc_reward(self, eps = 0.01):
-        
-        for i in range(num_lines):
-            if np.abs(self.p_lineflow[i]) < eps : 
+        We count zero flow through the line as when the power flowing into the line is equal to the power lost in it.
+
+        Parameters
+        ----------
+        eps: float
+            Tolerance
+
+        Attributes
+        ----------
+        reward_val: The value of the reward function is returned.
+        """
+
+        self.reward_val = 0.0
+        for i in range(self.net.line.shape[0]):
+            check1 = ((np.abs(self.net.res_line.p_to_kw.values[i] - self.net.res_line.pl_kw.values[i]) < eps or
+                       np.abs(self.net.res_line.p_from_kw.values[i] - self.net.res_line.pl_kw.values[i]) < eps))
+
+            check2 = ((np.abs(self.net.res_line.q_to_kvar.values[i] - self.net.res_line.ql_kvar.values[i]) < eps or
+                       np.abs(self.net.res_line.q_from_kvar.values[i] - self.net.res_line.ql_kvar.values[i]) < eps))
+            if check1 and check2:
                 self.reward_val += 1.0
-                
-        return 
-        
-        
-        
-        
-        
-        
