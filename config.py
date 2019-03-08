@@ -2,7 +2,7 @@ import numpy as np
 
 
 class config_sixbus_poc:
-    def __init__(self, use_baseline):
+    def __init__(self, use_baseline, battery_locations=[3, 6]):
         self.env_name = 'Six_Bus_POC'
 
         # output config
@@ -35,6 +35,8 @@ class config_sixbus_poc:
             4: 10 * np.ones(self.max_ep_len),
             7: 10 * np.ones(self.max_ep_len)
         }
+        self.battery_locations = battery_locations
+        self.init_socs = [0.5, 0.5]
 
         # parameters for the policy and baseline models
         self.n_layers               = 1
