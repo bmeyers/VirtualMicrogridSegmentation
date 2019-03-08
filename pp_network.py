@@ -91,7 +91,7 @@ class NetModel(object):
         state = np.concatenate([p_load, p_sgen, p_gen, p_storage, soc_storage])
         return state
 
-def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
+    def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
         """Change the network by adding a static generator.
 
         Parameters
@@ -245,7 +245,7 @@ def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
             idx = self.net.storage.index[-1]
             self.net.storage.loc[idx, 'capital_cost'] = capital_cost
     
-    def update_batteries(self, battery_powers, dt):
+    def update_batteries(self, battery_powers):
         """Update the batteries / storage units in the network.
 
         This method assumes that the orders match, i.e. the order the buses in
@@ -256,8 +256,6 @@ def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
         ----------
         battery_powers: array_like
             The power flow into / out of each battery, shape (number of traditional generators, 1).
-        dt: float
-            The time duration of this power flow in hours.
 
         Attributes
         ----------
