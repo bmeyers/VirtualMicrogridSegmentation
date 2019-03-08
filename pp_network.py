@@ -61,6 +61,7 @@ class NetModel(object):
         """Reset the network and reward values back to how they were initialized."""
         self.net = self.initial_net.copy
         self.reward_val = 0.0
+        self.time = 0
         self.run_powerflow()
         state = self.get_state()
         return state
