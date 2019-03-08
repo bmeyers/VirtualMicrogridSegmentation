@@ -3,6 +3,9 @@ import pandas as pd
 import pandapower as pp
 from pandapower.networks import create_synthetic_voltage_control_lv_network as mknet
 
+from config import get_config
+from network_generation import get_net
+
 
 class NetModel(object):
     """Building and interacting with a network model to simulate power flow.
@@ -14,16 +17,21 @@ class NetModel(object):
     
     def __init__(self, net_given=None, network_name='rural_1',
                  zero_out_gen_shunt_storage=True, tstep=1./60,
-                 net_zero_reward=1.0):
+                 net_zero_reward=1.0, env_name=None, baseline=True):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
-        if net_given is not None:
+        if env_name is not None:
+            self.config = get_config(env_name, baseline)
+            self.net = get_net(self.config)
+        elif net_given is not None:
             self.net = net_given
             self.network_name = 'custom_network'
+            self.config = None
         else:
             self.net = mknet(network_class=network_name)
             self.network_name = network_name
+            self.config = None
 
         if zero_out_gen_shunt_storage:
 
