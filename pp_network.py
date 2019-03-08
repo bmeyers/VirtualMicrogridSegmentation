@@ -56,6 +56,12 @@ class NetModel(object):
         self.net_zero_reward = net_zero_reward
         self.initial_net = self.net.copy
         self.time = 0
+        n_load = len(self.net.load)
+        n_sgen = len(self.net.sgen)
+        n_gen = len(self.net.gen)
+        n_storage = len(self.net.storage)
+        self.observation_dim = n_load + n_sgen + n_gen + 2 * n_storage
+        self.action_dim = n_gen + n_storage
 
     def reset(self):
         """Reset the network and reward values back to how they were initialized."""
