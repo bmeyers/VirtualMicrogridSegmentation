@@ -4,7 +4,7 @@ import numpy as np
 class config_sixbus_poc:
     def __init__(self, use_baseline):
         self.env_name = 'Six_Bus_POC'
-        
+
         # output config
         baseline_str      = 'baseline' if use_baseline else 'no_baseline'
         self.output_path  = "results/{}-{}/".format(self.env_name, baseline_str)
