@@ -1,11 +1,12 @@
 import pandapower as pp
+import numpy as np
 
 
 def get_net(config):
     if config.env_name == 'Six_Bus_POC':
         return six_bus(config.vn_high, config.vn_low, config.length_km,
-                       config.std_type, config.battery_locations, config.init_socs,
-                       config.energy_capacities, config.static_feeds)
+                       config.std_type, config.battery_locations, config.init_soc,
+                       config.energy_capacity, config.static_feeds)
 
 
 def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', battery_locations=[3, 6], init_soc=0.5,
@@ -41,10 +42,12 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
                    name='line5')
     pp.create_line(net, 5, 7, length_km=length_km, std_type=std_type,
                    name='line6')
+
     #  add controllable storage
     num_batteries = np.shape(battery_locations)[0]
     for i in range(num_batteries):
         pp.create_storage(net, bus=battery_locations[i], p_kw=0.0, max_e_kwh=energy_capacity, soc_percent=init_soc)
+
     #  add loads and static generation
     if static_feeds is None:
         print('No loads or generation assigned to network')
