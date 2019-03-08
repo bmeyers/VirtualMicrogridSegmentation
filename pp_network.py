@@ -50,10 +50,17 @@ class NetModel(object):
             self.net.shunt.q_kvar = 0
             self.net.shunt.in_service = False
 
-        self.reward_val = 0
+        self.reward_val = 0.0
 
         self.tstep = tstep
         self.net_zero_reward = net_zero_reward
+        self.initial_net = self.net.copy
+
+    def reset(self):
+        """Reset the network and reward values back to how they were initialized."""
+
+        self.net = self.initial_net.copy
+        self.reward_val = 0.0
 
     def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
         """Change the network by adding a static generator.
