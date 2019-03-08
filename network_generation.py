@@ -62,8 +62,16 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
                    name='line6')
 
     #  add controllable storage
-    for bus_number in battery_locations:
-        add_battery(net, bus_number=bus_number, p_init=0.0, energy_capacity=energy_capacity, init_soc=init_soc)
+    for idx, bus_number in enumerate(battery_locations):
+        energy_capacity_here = energy_capacity
+        init_soc_here = init_soc
+        if np.size(energy_capacity) > 1:
+            energy_capacity_here = energy_capacity[idx]
+        if np.size(init_soc) > 1:
+            init_soc_here = init_soc[idx]
+
+        add_battery(net, bus_number=bus_number, p_init=0.0, energy_capacity=energy_capacity_here,
+                    init_soc=init_soc_here)
 
     #  add loads and static generation
     if static_feeds is None:
@@ -72,6 +80,7 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
         if len(static_feeds) > 0:
             for key, val in static_feeds.items():
                 init_flow = val[0]
+                print('init_flow: ', init_flow, 'at bus: ', key)
                 if init_flow > 0:
                     pp.create_load(net, bus=key, p_kw=init_flow, q_kvar=0)
                 else:

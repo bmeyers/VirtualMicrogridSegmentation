@@ -16,7 +16,7 @@ class NetModel(object):
     """
     
     def __init__(self, net_given=None, network_name='rural_1',
-                 zero_out_gen_shunt_storage=True, tstep=1./60,
+                 zero_out_gen_shunt_storage=False, tstep=1./60,
                  net_zero_reward=1.0, env_name=None, baseline=True):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
@@ -33,22 +33,22 @@ class NetModel(object):
             self.network_name = network_name
             self.config = None
 
-        if zero_out_gen_shunt_storage:
-
-            self.net.sgen.p_kw = 0
-            self.net.sgen.q_kvar = 0
-
-            self.net.gen.p_kw = 0
-            self.net.gen.q_kvar = 0
-            self.net.gen.min_p_kw = 0
-            self.net.gen.max_p_kw = 0
-            self.net.gen.min_q_kvar = 0
-            self.net.gen.max_q_kvar = 0
-            self.net.gen.sn_kva = 0
-
-            self.net.shunt.p_kw = 0
-            self.net.shunt.q_kvar = 0
-            self.net.shunt.in_service = False
+        # if zero_out_gen_shunt_storage:
+        #
+        #     self.net.sgen.p_kw = 0
+        #     self.net.sgen.q_kvar = 0
+        #
+        #     self.net.gen.p_kw = 0
+        #     self.net.gen.q_kvar = 0
+        #     self.net.gen.min_p_kw = 0
+        #     self.net.gen.max_p_kw = 0
+        #     self.net.gen.min_q_kvar = 0
+        #     self.net.gen.max_q_kvar = 0
+        #     self.net.gen.sn_kva = 0
+        #
+        #     self.net.shunt.p_kw = 0
+        #     self.net.shunt.q_kvar = 0
+        #     self.net.shunt.in_service = False
 
         self.reward_val = 0.0
 
