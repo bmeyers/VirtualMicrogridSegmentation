@@ -66,6 +66,14 @@ class NetModel(object):
         state = self.get_state()
         return state
 
+    def step(self, p_set):
+        """Update the simulation by one step
+
+        :param p_set: 1D numpy array of floats, the action for the agent
+        :return:
+        """
+        pass
+
     def get_state(self):
         """Get the current state of the game
 
