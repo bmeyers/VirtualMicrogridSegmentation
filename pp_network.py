@@ -60,7 +60,6 @@ class NetModel(object):
         """Reset the network and reward values back to how they were initialized."""
 
         self.net = self.initial_net.copy
-        self.net_zero_reward = 1.0
         self.reward_val = 0.0
 
     def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
