@@ -55,14 +55,42 @@ class NetModel(object):
         self.tstep = tstep
         self.net_zero_reward = net_zero_reward
         self.initial_net = self.net.copy
+        self.time = 0
 
     def reset(self):
         """Reset the network and reward values back to how they were initialized."""
-
         self.net = self.initial_net.copy
         self.reward_val = 0.0
+        self.run_powerflow()
+        state = self.get_state()
+        return state
 
-    def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
+    def get_state(self):
+        """Get the current state of the game
+
+        The state is given by the power supplied or consumed by all devices
+        on the network, plus the state of charge (SoC) of the batteries. This
+        method defines a "global ordering" for this vector:
+            - Non-controllable loads (power, kW)
+            - Non-controllable generators (power, kW)
+            - Controllable generators (power, kW)
+            - Controllable batteries (power, kW)
+            - SoC for batteries (soc, no units)
+
+        We are not currently considering reactive power (Q) as part of the
+        problem.
+
+        :return: A 1D numpy array containing the current state
+        """
+        p_load = self.net.res_load.p_kw
+        p_sgen = self.net.res_sgen.p_kw
+        p_gen = self.net.res_gen.p_kw
+        p_storage = self.net.res_storage.p_kw
+        soc_storage = self.net.storage.soc_percent
+        state = np.concatenate([p_load, p_sgen, p_gen, p_storage, soc_storage])
+        return state
+
+def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
         """Change the network by adding a static generator.
 
         Parameters
