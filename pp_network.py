@@ -172,49 +172,6 @@ class NetModel(object):
         """
 
         self.net.gen.p_kw = new_gen_p
-
-    def add_battery(self, bus_number, p_init, energy_capacity, init_soc=0.5,
-                    max_p=50, min_p=-50, eff=1.0, capital_cost=0, min_e=0.):
-        """Change the network by adding a battery / storage unit.
-
-        Parameters
-        ----------
-        bus_number: int
-            The bus at which the generator should be added
-        p_init: float
-            The initial real power flow to (positive) / from (negative) the
-            battery for initialization. (Typically zero)
-        energy_capacity: float
-            The energy capacity of the battery.
-        init_soc: float
-            The initial state of charge (between 0 and 1)
-        max_p: float
-            The maximum power *consumption* by the battery (positive)
-        min_p: float
-            The maximum power *production* by the battery (negative)
-        eff: float
-            The efficiency of the battery, assumed to be the same of import and
-            export (between 0 and 1)
-
-        Attributes
-        ----------
-        net: object
-            The network object is updated
-        """
-
-        pp.create_storage(self.net, bus_number, p_init, energy_capacity,
-                          soc_percent=init_soc, max_p_kw=max_p, min_p_kw=min_p,
-                          min_e_kwh=min_e)
-        if 'eff' not in self.net.storage.columns:
-            self.net.storage['eff'] = eff
-        else:
-            idx = self.net.storage.index[-1]
-            self.net.storage.loc[idx, 'eff'] = eff
-        if 'cap_cost' not in self.net.storage.columns:
-            self.net.storage['cap_cost'] = capital_cost
-        else:
-            idx = self.net.storage.index[-1]
-            self.net.storage.loc[idx, 'capital_cost'] = capital_cost
     
     def update_batteries(self, battery_powers, dt):
         """Update the batteries / storage units in the network.

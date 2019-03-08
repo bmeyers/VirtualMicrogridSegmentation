@@ -9,6 +9,24 @@ def get_net(config):
                        config.energy_capacity, config.static_feeds)
 
 
+def add_battery(net, bus_number, p_init, energy_capacity, init_soc=0.5,
+                max_p=50, min_p=-50, eff=1.0, capital_cost=0, min_e=0.):
+    """Change the network by adding a battery / storage unit. """
+    pp.create_storage(net, bus_number, p_init, energy_capacity,
+                      soc_percent=init_soc, max_p_kw=max_p, min_p_kw=min_p,
+                      min_e_kwh=min_e)
+    if 'eff' not in net.storage.columns:
+        net.storage['eff'] = eff
+    else:
+        idx = net.storage.index[-1]
+        net.storage.loc[idx, 'eff'] = eff
+    if 'cap_cost' not in net.storage.columns:
+        net.storage['cap_cost'] = capital_cost
+    else:
+        idx = net.storage.index[-1]
+        net.storage.loc[idx, 'capital_cost'] = capital_cost
+
+
 def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', battery_locations=[3, 6], init_soc=0.5,
             energy_capacity=20.0, static_feeds=None):
     net = pp.create_empty_network(name='6bus', f_hz=60., sn_kva=100.)
@@ -44,9 +62,8 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
                    name='line6')
 
     #  add controllable storage
-    num_batteries = np.shape(battery_locations)[0]
-    for i in range(num_batteries):
-        pp.create_storage(net, bus=battery_locations[i], p_kw=0.0, max_e_kwh=energy_capacity, soc_percent=init_soc)
+    for bus_number in battery_locations:
+        add_battery(net, bus_number=bus_number, p_init=0.0, energy_capacity=energy_capacity, init_soc=init_soc)
 
     #  add loads and static generation
     if static_feeds is None:
@@ -61,3 +78,5 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
                     pp.create_sgen(net, bus=key, p_kw=init_flow, q_kvar=0)
 
     return net
+
+
