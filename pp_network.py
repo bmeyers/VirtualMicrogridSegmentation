@@ -17,12 +17,15 @@ class NetModel(object):
     
     def __init__(self, net_given=None, network_name='rural_1',
                  zero_out_gen_shunt_storage=False, tstep=1./60,
-                 net_zero_reward=1.0, env_name=None, baseline=True):
+                 net_zero_reward=1.0, env_name=None, baseline=True, config=None):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
         if env_name is not None:
-            self.config = get_config(env_name, baseline)
+            if config is not None:
+                self.config = config
+            else:
+                self.config = get_config(env_name, baseline)
             self.net = get_net(self.config)
         elif net_given is not None:
             self.net = net_given

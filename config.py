@@ -2,7 +2,7 @@ import numpy as np
 
 
 class ConfigSixBusPOC(object):
-    def __init__(self, use_baseline, battery_locations=[3, 6]):
+    def __init__(self, use_baseline, battery_locations, init_soc, energy_capacity):
         self.env_name = 'Six_Bus_POC'
 
         # output config
@@ -36,8 +36,8 @@ class ConfigSixBusPOC(object):
             7: 10 * np.ones(self.max_ep_len)
         }
         self.battery_locations = battery_locations
-        self.init_soc = 0.5
-        self.energy_capacity = 20
+        self.init_soc = init_soc
+        self.energy_capacity = energy_capacity
 
         # parameters for the policy and baseline models
         self.n_layers               = 1
@@ -50,6 +50,6 @@ class ConfigSixBusPOC(object):
             self.max_ep_len = self.batch_size
 
 
-def get_config(env_name, baseline):
+def get_config(env_name, baseline, battery_locations=[3, 6], init_soc=0.5, energy_capacity=20.0):
     if env_name == 'Six_Bus_POC':
-        return ConfigSixBusPOC(baseline)
+        return ConfigSixBusPOC(baseline, battery_locations, init_soc, energy_capacity)
