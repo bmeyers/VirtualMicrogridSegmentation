@@ -78,7 +78,9 @@ class NetModel(object):
         :param p_set: 1D numpy array of floats, the action for the agent
         :return:
         """
+        # Increment the time
         self.time += 1
+        # Update non-controllable resources from their predefined data feeds
         new_loads = pd.Series(data=None, index=self.net.load.bus)
         new_sgens = pd.Series(data=None, index=self.net.sgen.bus)
         for bus, feed in self.config.static_feeds:
@@ -87,6 +89,21 @@ class NetModel(object):
                 new_loads[bus] = p_new
             else:
                 new_sgens[bus] = p_new
+        self.update_loads(new_p=new_loads.values)
+        self.update_static_generation(new_p=new_sgens.values)
+        # Update controllable resources
+        new_gens = p_set[:self.n_gen]
+        new_storage = p_set[self.n_gen:]
+        self.update_generation(new_p=new_gens)
+        self.update_batteries(new_p=new_storage)
+        # Run power flow
+        self.run_powerflow()
+        # Collect items to return
+        state = self.get_state()
+        reward = self.calculate_reward()
+        done = self.time >= self.config.max_ep_len
+        info = ''
+        return state, reward, done, info
 
     def get_state(self):
         """Get the current state of the game
@@ -205,7 +222,7 @@ class NetModel(object):
         if new_q is not None:
             self.net.sgen.q_kvar = new_q
 
-    def update_generation(self, new_gen_p):
+    def update_generation(self, new_p=None, new_q=None):
         """Update the traditional (not static) generation in the network.
 
         This method assumes that the orders match, i.e. the order the buses in
@@ -223,8 +240,10 @@ class NetModel(object):
         self.net.gen: object
             The traditional generation values in the network object are updated.
         """
-
-        self.net.gen.p_kw = new_gen_p
+        if new_p is not None:
+            self.net.gen.p_kw = new_p
+        if new_q is not None:
+            self.net.gen.q_kvar = new_q
 
     def add_battery(self, bus_number, p_init, energy_capacity, init_soc=0.5,
                     max_p=50, min_p=-50, eff=1.0, capital_cost=0, min_e=0.):
@@ -269,7 +288,7 @@ class NetModel(object):
             idx = self.net.storage.index[-1]
             self.net.storage.loc[idx, 'capital_cost'] = capital_cost
     
-    def update_batteries(self, battery_powers):
+    def update_batteries(self, new_p):
         """Update the batteries / storage units in the network.
 
         This method assumes that the orders match, i.e. the order the buses in
@@ -295,7 +314,7 @@ class NetModel(object):
         pmax = self.net.storage.max_p_kw
         pmax_soc = (1. - soc) * cap / (eff * self.tstep)
         pmax = np.min([pmax, pmax_soc], axis=0)
-        ps = np.clip(battery_powers, pmin, pmax)
+        ps = np.clip(new_p, pmin, pmax)
         self.net.storage.p_kw = ps
         soc_next = soc + ps * self.tstep * eff / cap
         msk = ps < 0
@@ -360,3 +379,4 @@ class NetModel(object):
         incurred_costs = betas * np.abs(self.net.storage.p_kw)
         for c in incurred_costs:
             self.reward_val -= c
+        return self.reward_val
