@@ -56,12 +56,12 @@ class NetModel(object):
         self.net_zero_reward = net_zero_reward
         self.initial_net = self.net.copy
         self.time = 0
-        n_load = len(self.net.load)
-        n_sgen = len(self.net.sgen)
-        n_gen = len(self.net.gen)
-        n_storage = len(self.net.storage)
-        self.observation_dim = n_load + n_sgen + n_gen + 2 * n_storage
-        self.action_dim = n_gen + n_storage
+        self.n_load = len(self.net.load)
+        self.n_sgen = len(self.net.sgen)
+        self.n_gen = len(self.net.gen)
+        self.n_storage = len(self.net.storage)
+        self.observation_dim = self.n_load + self.n_sgen + self.n_gen + 2 * self.n_storage
+        self.action_dim = self.n_gen + self.n_storage
 
     def reset(self):
         """Reset the network and reward values back to how they were initialized."""
@@ -78,7 +78,15 @@ class NetModel(object):
         :param p_set: 1D numpy array of floats, the action for the agent
         :return:
         """
-        pass
+        self.time += 1
+        new_loads = pd.Series(data=None, index=self.net.load.bus)
+        new_sgens = pd.Series(data=None, index=self.net.sgen.bus)
+        for bus, feed in self.config.static_feeds:
+            p_new = feed[self.time]
+            if p_new > 0:
+                new_loads[bus] = p_new
+            else:
+                new_sgens[bus] = p_new
 
     def get_state(self):
         """Get the current state of the game
@@ -152,7 +160,7 @@ class NetModel(object):
         else:
             pp.create_gen(self.net, bus_number, init_real_power)
 
-    def update_loads(self, new_p, new_q):
+    def update_loads(self, new_p=None, new_q=None):
         """Update the loads in the network.
 
         This method assumes that the orders match, i.e. the order the buses in
@@ -169,11 +177,12 @@ class NetModel(object):
         self.net.load: object
             The load values in the network object are updated.
         """
+        if new_p is not None:
+            self.net.load.p_kw = new_p
+        if new_q is not None:
+            self.net.load.q_kvar = new_q
 
-        self.net.load.p_kw = new_p
-        self.net.load.q_kvar = new_q
-
-    def update_static_generation(self, new_sgen_p, new_sgen_q):
+    def update_static_generation(self, new_p=None, new_q=None):
         """Update the static generation in the network.
 
         This method assumes that the orders match, i.e. the order the buses in
@@ -191,9 +200,10 @@ class NetModel(object):
         self.net.sgen: object
             The static generation values in the network object are updated.
         """
-
-        self.net.sgen.p_kw = new_sgen_p
-        self.net.sgen.q_kvar = new_sgen_q
+        if new_p is not None:
+            self.net.sgen.p_kw = new_p
+        if new_q is not None:
+            self.net.sgen.q_kvar = new_q
 
     def update_generation(self, new_gen_p):
         """Update the traditional (not static) generation in the network.
