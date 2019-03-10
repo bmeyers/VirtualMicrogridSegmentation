@@ -12,7 +12,6 @@ class NetModel(object):
     generators, batteries, lines, buses, and transformers. The state of each is
     tracked in a pandapower network object.
     """
-    
     def __init__(self, config=None, net_given=None, env_name='Six_Bus_POC', tstep=1./60,
                  net_zero_reward=1.0, baseline=True):
         """Initialize attributes of the object and zero out certain components
@@ -33,15 +32,84 @@ class NetModel(object):
 
         self.tstep = tstep
         self.net_zero_reward = net_zero_reward
-        self.initial_net = self.net.copy
+        self.initial_net = pp.copy.deepcopy(self.net)
+        self.time = 0
+        self.n_load = len(self.net.load)
+        self.n_sgen = len(self.net.sgen)
+        self.n_gen = len(self.net.gen)
+        self.n_storage = len(self.net.storage)
+        self.observation_dim = self.n_load + self.n_sgen + self.n_gen + 2 * self.n_storage
+        self.action_dim = self.n_gen + self.n_storage
 
     def reset(self):
         """Reset the network and reward values back to how they were initialized."""
-
-        self.net = self.initial_net.copy
+        self.net = pp.copy.deepcopy(self.initial_net)
         self.reward_val = 0.0
+        self.time = 0
+        self.run_powerflow()
+        state = self.get_state()
+        return state
 
-    def update_loads(self, new_p, new_q):
+    def step(self, p_set):
+        """Update the simulation by one step
+
+        :param p_set: 1D numpy array of floats, the action for the agent
+        :return:
+        """
+        # Increment the time
+        self.time += 1
+        # Update non-controllable resources from their predefined data feeds
+        new_loads = pd.Series(data=None, index=self.net.load.bus)
+        new_sgens = pd.Series(data=None, index=self.net.sgen.bus)
+        for bus, feed in self.config.static_feeds.items():
+            p_new = feed[self.time]
+            if p_new > 0:
+                new_loads[bus] = p_new
+            else:
+                new_sgens[bus] = p_new
+        self.update_loads(new_p=new_loads.values)
+        self.update_static_generation(new_p=new_sgens.values)
+        # Update controllable resources
+        new_gens = p_set[:self.n_gen]
+        new_storage = p_set[self.n_gen:]
+        self.update_generation(new_p=new_gens)
+        self.update_batteries(new_p=new_storage)
+        # Run power flow
+        self.run_powerflow()
+        # Collect items to return
+        state = self.get_state()
+        reward = self.calculate_reward()
+        done = self.time >= self.config.max_ep_len
+        info = ''
+        return state, reward, done, info
+
+    def get_state(self):
+        """Get the current state of the game
+
+        The state is given by the power supplied or consumed by all devices
+        on the network, plus the state of charge (SoC) of the batteries. This
+        method defines a "global ordering" for this vector:
+            - Non-controllable loads (power, kW)
+            - Non-controllable generators (power, kW)
+            - Controllable generators (power, kW)
+            - Controllable batteries (power, kW)
+            - SoC for batteries (soc, no units)
+
+        We are not currently considering reactive power (Q) as part of the
+        problem.
+
+        :return: A 1D numpy array containing the current state
+        """
+        p_load = self.net.res_load.p_kw
+        p_sgen = self.net.res_sgen.p_kw
+        p_gen = self.net.res_gen.p_kw
+        p_storage = self.net.res_storage.p_kw
+        soc_storage = self.net.storage.soc_percent
+        state = np.concatenate([p_load, p_sgen, p_gen, p_storage, soc_storage])
+        return state
+
+    def update_loads(self, new_p=None, new_q=None):
+
         """Update the loads in the network.
 
         This method assumes that the orders match, i.e. the order the buses in
@@ -58,11 +126,12 @@ class NetModel(object):
         self.net.load: object
             The load values in the network object are updated.
         """
+        if new_p is not None:
+            self.net.load.p_kw = new_p
+        if new_q is not None:
+            self.net.load.q_kvar = new_q
 
-        self.net.load.p_kw = new_p
-        self.net.load.q_kvar = new_q
-
-    def update_static_generation(self, new_sgen_p, new_sgen_q):
+    def update_static_generation(self, new_p=None, new_q=None):
         """Update the static generation in the network.
 
         This method assumes that the orders match, i.e. the order the buses in
@@ -80,11 +149,12 @@ class NetModel(object):
         self.net.sgen: object
             The static generation values in the network object are updated.
         """
+        if new_p is not None:
+            self.net.sgen.p_kw = new_p
+        if new_q is not None:
+            self.net.sgen.q_kvar = new_q
 
-        self.net.sgen.p_kw = new_sgen_p
-        self.net.sgen.q_kvar = new_sgen_q
-
-    def update_generation(self, new_gen_p):
+    def update_generation(self, new_p=None, new_q=None):
         """Update the traditional (not static) generation in the network.
 
         This method assumes that the orders match, i.e. the order the buses in
@@ -102,10 +172,12 @@ class NetModel(object):
         self.net.gen: object
             The traditional generation values in the network object are updated.
         """
+        if new_p is not None:
+            self.net.gen.p_kw = new_p
+        if new_q is not None:
+            self.net.gen.q_kvar = new_q
 
-        self.net.gen.p_kw = new_gen_p
-    
-    def update_batteries(self, battery_powers, dt):
+    def update_batteries(self, new_p):
         """Update the batteries / storage units in the network.
 
         This method assumes that the orders match, i.e. the order the buses in
@@ -116,8 +188,6 @@ class NetModel(object):
         ----------
         battery_powers: array_like
             The power flow into / out of each battery, shape (number of traditional generators, 1).
-        dt: float
-            The time duration of this power flow in hours.
 
         Attributes
         ----------
@@ -133,7 +203,7 @@ class NetModel(object):
         pmax = self.net.storage.max_p_kw
         pmax_soc = (1. - soc) * cap / (eff * self.tstep)
         pmax = np.min([pmax, pmax_soc], axis=0)
-        ps = np.clip(battery_powers, pmin, pmax)
+        ps = np.clip(new_p, pmin, pmax)
         self.net.storage.p_kw = ps
         soc_next = soc + ps * self.tstep * eff / cap
         msk = ps < 0
@@ -153,7 +223,8 @@ class NetModel(object):
         """
         try:
             pp.runpp(self.net, enforce_q_lims=True,
-                     calculate_voltage_angles=False, voltage_depend_loads=False)
+                     calculate_voltage_angles=False,
+                     voltage_depend_loads=False)
         except:
             print('There was an error running the powerflow! pp.runpp() didnt work')
 
@@ -179,22 +250,30 @@ class NetModel(object):
         reward_val: The value of the reward function is returned.
         """
 
-        self.reward_val = 0.0
-        for i in range(self.net.line.shape[0]):
-            cond1a = np.abs(self.net.res_line.p_to_kw.values[i] - self.net.res_line.pl_kw.values[i]) < eps
-            cond1b = np.abs(self.net.res_line.p_from_kw.values[i] - self.net.res_line.pl_kw.values[i]) < eps
-            check1 = (cond1a or cond1b)
-            cond2a = np.abs(self.net.res_line.q_to_kvar.values[i] - self.net.res_line.ql_kvar.values[i]) < eps
-            cond2b = np.abs(self.net.res_line.q_from_kvar.values[i] - self.net.res_line.ql_kvar.values[i]) < eps
-            check2 = (cond2a or cond2b)
-            if check1 and check2:
-                self.reward_val += self.net_zero_reward
+        # self.reward_val = 0.0
+        # for i in range(self.net.line.shape[0]):
+        #     cond1a = np.abs(self.net.res_line.p_to_kw.values[i] -
+        #                     self.net.res_line.pl_kw.values[i]) < eps
+        #     cond1b = np.abs(self.net.res_line.p_from_kw.values[i] -
+        #                     self.net.res_line.pl_kw.values[i]) < eps
+        #     check1 = (cond1a or cond1b)
+        #     cond2a = np.abs(self.net.res_line.q_to_kvar.values[i] -
+        #                     self.net.res_line.ql_kvar.values[i]) < eps
+        #     cond2b = np.abs(self.net.res_line.q_from_kvar.values[i] -
+        #                     self.net.res_line.ql_kvar.values[i]) < eps
+        #     check2 = (cond2a or cond2b)
+        #     if check1 and check2:
+        #         self.reward_val += self.net_zero_reward
+        c1 = np.abs(self.net.res_line.p_to_kw - self.net.res_line.pl_kw) < eps
+        c2 = np.abs(self.net.res_line.p_from_kw - self.net.res_line.pl_kw) < eps
+        self.reward_val = np.sum(np.logical_or(c1.values, c2.values), dtype=np.float)
 
         # Costs for running batteries
-        cap_costs = self.net.storage.capital_cost
+        cap_costs = self.net.storage.cap_cost
         max_e = self.net.storage.max_e_kwh
         min_e = self.net.storage.min_e_kwh
         betas = cap_costs / (2 * 1000 * (max_e - min_e))
         incurred_costs = betas * np.abs(self.net.storage.p_kw)
         for c in incurred_costs:
             self.reward_val -= c
+        return self.reward_val
