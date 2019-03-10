@@ -9,11 +9,10 @@ def get_net(config):
                        config.std_type, config.battery_locations, config.init_soc,
                        config.energy_capacity, config.static_feeds)
     if config.env_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
-        net_out, static_feed_out = standard_lv(config.env_name, config.remove_q, config.static_feeds, config.clear_loads_sgen, config.clear_gen,
-                           config.battery_locations, config.percent_battery_buses, config.batteries_on_leaf_nodes_only,
-                           config.init_soc, config.energy_capacity, config.max_ep_len)
-        config.static_feed = static_feed_out.copy()
-        return net_out
+        return standard_lv(config.env_name, config.remove_q, config.static_feeds_new, config.clear_loads_sgen,
+                           config.clear_gen, config.battery_locations, config.percent_battery_buses,
+                           config.batteries_on_leaf_nodes_only, config.init_soc, config.energy_capacity)
+
 
 def add_battery(net, bus_number, p_init, energy_capacity, init_soc=0.5,
                 max_p=50, min_p=-50, eff=1.0, capital_cost=0, min_e=0.):
@@ -118,9 +117,9 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
     return net
 
 
-def standard_lv(env_name, remove_q=True, static_feeds=None, clear_loads_sgen=False, clear_gen=True,
+def standard_lv(env_name, remove_q=True, static_feeds_new=None, clear_loads_sgen=False, clear_gen=True,
                 battery_locations=None, percent_battery_buses=0.5, batteries_on_leaf_nodes_only=True, init_soc=0.5,
-                energy_capacity=20.0, max_ep_len=60):
+                energy_capacity=20.0):
 
     net = mknet(network_class=env_name)
 
@@ -171,23 +170,11 @@ def standard_lv(env_name, remove_q=True, static_feeds=None, clear_loads_sgen=Fal
             add_battery(net, bus_number=bus_number, p_init=0.0, energy_capacity=energy_capacity_here,
                         init_soc=init_soc_here)
 
-    #  add loads and static generation
-    if static_feeds is None:
-        static_feeds_together = {}
-    else:
-        static_feeds_together = static_feeds.copy()
-    if net.load.shape[0] > 0:
-        for idx, row in net.load.iterrows():
-            static_feeds_together.update({row['bus']: row['p_kw'] * np.ones(max_ep_len)})
-    if net.sgen.shape[0] > 0:
-        for idx, row in net.sgen.iterrows():
-            static_feeds_together.update({row['bus']: row['p_kw'] * np.ones(max_ep_len)})
-
-    if static_feeds is None:
+    if static_feeds_new is None:
         print('No loads or generation added to network')
     else:
-        if len(static_feeds) > 0:
-            for key, val in static_feeds.items():
+        if len(static_feeds_new) > 0:
+            for key, val in static_feeds_new.items():
                 init_flow = val[0]
                 print('init_flow: ', init_flow, 'at bus: ', key)
                 if init_flow > 0:
@@ -195,12 +182,10 @@ def standard_lv(env_name, remove_q=True, static_feeds=None, clear_loads_sgen=Fal
                 else:
                     pp.create_sgen(net, bus=key, p_kw=init_flow, q_kvar=0)
 
-    # config.static_feeds = static_feeds_together.copy()
-
     #  Name buses for plotting
     for i in range(net.bus.name.shape[0]):
         net.bus.name.at[i] = 'bus' + str(i)
 
-    return net, static_feeds_together
+    return net
 
 

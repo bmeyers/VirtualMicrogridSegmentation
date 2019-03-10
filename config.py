@@ -1,5 +1,5 @@
 import numpy as np
-
+from pandapower.networks import create_synthetic_voltage_control_lv_network as mknet
 
 class ConfigSixBusPOC(object):
     def __init__(self, use_baseline):
@@ -73,18 +73,32 @@ class StandardLVNetwork(object):
         self.use_baseline = use_baseline
         self.normalize_advantage = True
 
+        self.remove_q = True
+        self.clear_loads_sgen = False
+        self.clear_gen = True
+
         # environment generation
-        self.static_feeds = None  # None will populate with the standard values the network shipped with
-        # self.static_feeds = {
+        self.static_feeds_new = None  # Acts how static_feeds does in the 6BusPOC config
+        # self.static_feeds_new = {
         #     3: -10 * np.ones(self.max_ep_len),
         #     6: -10 * np.ones(self.max_ep_len),
         #     4: 10 * np.ones(self.max_ep_len),
         #     7: 10 * np.ones(self.max_ep_len)
         # }
 
-        self.remove_q = True
-        self.clear_loads_sgen = False
-        self.clear_gen = True
+        # Fill static_feeds with the loads and static generators that ship with the network
+        if self.static_feeds_new is None:
+            self.static_feeds = {}
+        else:
+            self.static_feeds = self.static_feeds_new.copy()
+        net = mknet(network_class=env_name)
+        if not self.clear_loads_sgen:
+            if net.load.shape[0] > 0:
+                for idx, row in net.load.iterrows():
+                    self.static_feeds.update({row['bus']: row['p_kw'] * np.ones(self.max_ep_len)})
+            if net.sgen.shape[0] > 0:
+                for idx, row in net.sgen.iterrows():
+                    self.static_feeds.update({row['bus']: row['p_kw'] * np.ones(self.max_ep_len)})
 
         self.battery_locations = None  # Specify specific locations, or can pick options for random generation:
         self.percent_battery_buses = 0.5  # How many of the buses should be assigned batteries
