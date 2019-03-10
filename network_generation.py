@@ -15,14 +15,8 @@ def add_battery(net, bus_number, p_init, energy_capacity, init_soc=0.5,
     pp.create_storage(net, bus_number, p_init, energy_capacity,
                       soc_percent=init_soc, max_p_kw=max_p, min_p_kw=min_p,
                       min_e_kwh=min_e)
-    # if 'eff' not in net.storage.columns:
-    #     net.storage['eff'] = eff
-    # else:
     idx = net.storage.index[-1]
     net.storage.loc[idx, 'eff'] = eff
-    # if 'cap_cost' not in net.storage.columns:
-    #     net.storage['cap_cost'] = capital_cost
-    # else:
     idx = net.storage.index[-1]
     net.storage.loc[idx, 'cap_cost'] = capital_cost
 

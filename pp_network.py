@@ -21,11 +21,11 @@ class NetModel(object):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
-        if env_name is not None:
-            if config is not None:
-                self.config = config
-            else:
-                self.config = get_config(env_name, baseline)
+        if config is not None:
+            self.config = config
+            self.net = get_net(self.config)
+        elif env_name is not None:
+            self.config = get_config(env_name, baseline)
             self.net = get_net(self.config)
         elif net_given is not None:
             self.net = net_given
