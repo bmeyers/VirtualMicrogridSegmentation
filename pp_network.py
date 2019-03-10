@@ -42,7 +42,7 @@ class NetModel(object):
 
         self.tstep = tstep
         self.net_zero_reward = net_zero_reward
-        self.initial_net = self.net.copy()
+        self.initial_net = pp.copy.deepcopy(self.net)
         self.time = 0
         self.n_load = len(self.net.load)
         self.n_sgen = len(self.net.sgen)
@@ -53,7 +53,7 @@ class NetModel(object):
 
     def reset(self):
         """Reset the network and reward values back to how they were initialized."""
-        self.net = self.initial_net.copy()
+        self.net = pp.copy.deepcopy(self.initial_net)
         self.reward_val = 0.0
         self.time = 0
         self.run_powerflow()
@@ -71,7 +71,7 @@ class NetModel(object):
         # Update non-controllable resources from their predefined data feeds
         new_loads = pd.Series(data=None, index=self.net.load.bus)
         new_sgens = pd.Series(data=None, index=self.net.sgen.bus)
-        for bus, feed in self.config.static_feeds:
+        for bus, feed in self.config.static_feeds.items():
             p_new = feed[self.time]
             if p_new > 0:
                 new_loads[bus] = p_new
@@ -322,7 +322,7 @@ class NetModel(object):
                 self.reward_val += self.net_zero_reward
 
         # Costs for running batteries
-        cap_costs = self.net.storage.capital_cost
+        cap_costs = self.net.storage.cap_cost
         max_e = self.net.storage.max_e_kwh
         min_e = self.net.storage.min_e_kwh
         betas = cap_costs / (2 * 1000 * (max_e - min_e))
