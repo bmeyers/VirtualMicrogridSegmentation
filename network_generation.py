@@ -169,6 +169,7 @@ def standard_lv(env_name, remove_q=True, static_feeds_new=None, clear_loads_sgen
                     init_soc_here = init_soc[idx]
             add_battery(net, bus_number=bus_number, p_init=0.0, energy_capacity=energy_capacity_here,
                         init_soc=init_soc_here)
+        
 
     if static_feeds_new is None:
         print('No loads or generation added to network')
