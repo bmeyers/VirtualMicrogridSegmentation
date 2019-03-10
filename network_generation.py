@@ -2,16 +2,18 @@ import pandapower as pp
 import numpy as np
 from pandapower.networks import create_synthetic_voltage_control_lv_network as mknet
 
+
 def get_net(config):
     if config.env_name == 'Six_Bus_POC':
         return six_bus(config.vn_high, config.vn_low, config.length_km,
                        config.std_type, config.battery_locations, config.init_soc,
                        config.energy_capacity, config.static_feeds)
     if config.env_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
-        return standard_lv(config.env_name, config.remove_q, config.static_feeds, config.clear_loads_sgen, config.clear_gen,
+        net_out, static_feed_out = standard_lv(config.env_name, config.remove_q, config.static_feeds, config.clear_loads_sgen, config.clear_gen,
                            config.battery_locations, config.percent_battery_buses, config.batteries_on_leaf_nodes_only,
-                           config.init_soc, config.energy_capacity)
-
+                           config.init_soc, config.energy_capacity, config.max_ep_len)
+        config.static_feed = static_feed_out.copy()
+        return net_out
 
 def add_battery(net, bus_number, p_init, energy_capacity, init_soc=0.5,
                 max_p=50, min_p=-50, eff=1.0, capital_cost=0, min_e=0.):
@@ -23,6 +25,7 @@ def add_battery(net, bus_number, p_init, energy_capacity, init_soc=0.5,
     net.storage.loc[idx, 'eff'] = eff
     idx = net.storage.index[-1]
     net.storage.loc[idx, 'cap_cost'] = capital_cost
+
 
 def add_generation(net, bus_number, init_real_power, set_limits=False,
                    min_p_kw=0, max_p_kw=0, min_q_kvar=0,
@@ -51,6 +54,7 @@ def add_generation(net, bus_number, init_real_power, set_limits=False,
                               min_q_kvar=min_q_kvar, max_q_kvar=max_q_kvar)
     else:
         pp.create_gen(net, bus_number, init_real_power)
+
 
 def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', battery_locations=[3, 6], init_soc=0.5,
             energy_capacity=20.0, static_feeds=None):
@@ -114,10 +118,11 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
     return net
 
 
-def standard_lv(env_name, remove_q=True, static_feeds=None, clear_loads_sgen=False, clear_gen=True, battery_locations=None,
-                percent_battery_buses, batteries_on_leaf_nodes_only, init_soc=0.5, energy_capacity=20.0):
+def standard_lv(env_name, remove_q=True, static_feeds=None, clear_loads_sgen=False, clear_gen=True,
+                battery_locations=None, percent_battery_buses=0.5, batteries_on_leaf_nodes_only=True, init_soc=0.5,
+                energy_capacity=20.0, max_ep_len=60):
 
-    net = mknet(network_name=env_name)
+    net = mknet(network_class=env_name)
 
     # Remove q components
     if remove_q:
@@ -142,8 +147,8 @@ def standard_lv(env_name, remove_q=True, static_feeds=None, clear_loads_sgen=Fal
     elif percent_battery_buses > 0:
         if batteries_on_leaf_nodes_only:
             leaf_nodes = []
-            for i in env.net.line.to_bus.values:
-                if i not in env.net.line.from_bus.values:
+            for i in net.line.to_bus.values:
+                if i not in net.line.from_bus.values:
                     leaf_nodes.append(i)
             applied_battery_locations = np.random.choice(leaf_nodes, int(percent_battery_buses * len(leaf_nodes)),
                                                  replace=False)
@@ -151,7 +156,8 @@ def standard_lv(env_name, remove_q=True, static_feeds=None, clear_loads_sgen=Fal
             applied_battery_locations = np.random.choice(net.bus.shape[0], int(percent_battery_buses * net.bus.shape[0]),
                                                  replace=False)
     if len(applied_battery_locations) > 0:
-        for idx, bus_number in enumerate(battery_locations):
+        num_batteries = len(applied_battery_locations)
+        for idx, bus_number in enumerate(applied_battery_locations):
             energy_capacity_here = energy_capacity
             init_soc_here = init_soc
             if np.size(energy_capacity) > 1:
@@ -167,6 +173,17 @@ def standard_lv(env_name, remove_q=True, static_feeds=None, clear_loads_sgen=Fal
 
     #  add loads and static generation
     if static_feeds is None:
+        static_feeds_together = {}
+    else:
+        static_feeds_together = static_feeds.copy()
+    if net.load.shape[0] > 0:
+        for idx, row in net.load.iterrows():
+            static_feeds_together.update({row['bus']: row['p_kw'] * np.ones(max_ep_len)})
+    if net.sgen.shape[0] > 0:
+        for idx, row in net.sgen.iterrows():
+            static_feeds_together.update({row['bus']: row['p_kw'] * np.ones(max_ep_len)})
+
+    if static_feeds is None:
         print('No loads or generation added to network')
     else:
         if len(static_feeds) > 0:
@@ -178,6 +195,12 @@ def standard_lv(env_name, remove_q=True, static_feeds=None, clear_loads_sgen=Fal
                 else:
                     pp.create_sgen(net, bus=key, p_kw=init_flow, q_kvar=0)
 
-    return net
+    # config.static_feeds = static_feeds_together.copy()
+
+    #  Name buses for plotting
+    for i in range(net.bus.name.shape[0]):
+        net.bus.name.at[i] = 'bus' + str(i)
+
+    return net, static_feeds_together
 
 

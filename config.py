@@ -83,7 +83,8 @@ class StandardLVNetwork(object):
         # }
 
         self.remove_q = True
-        self.clear_loads_gens = False
+        self.clear_loads_sgen = False
+        self.clear_gen = True
 
         self.battery_locations = None  # Specify specific locations, or can pick options for random generation:
         self.percent_battery_buses = 0.5  # How many of the buses should be assigned batteries
