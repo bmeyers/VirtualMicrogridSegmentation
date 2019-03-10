@@ -16,12 +16,15 @@ class NetModel(object):
     """
     
     def __init__(self, net_given=None, network_name='rural_1',
-                 zero_out_gen_shunt_storage=True, tstep=1./60,
-                 net_zero_reward=1.0, env_name=None, baseline=True):
+                 zero_out_gen_shunt_storage=False, tstep=1./60,
+                 net_zero_reward=1.0, env_name=None, baseline=True, config=None):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
-        if env_name is not None:
+        if config is not None:
+            self.config = config
+            self.net = get_net(self.config)
+        elif env_name is not None:
             self.config = get_config(env_name, baseline)
             self.net = get_net(self.config)
         elif net_given is not None:
@@ -33,22 +36,22 @@ class NetModel(object):
             self.network_name = network_name
             self.config = None
 
-        if zero_out_gen_shunt_storage:
-
-            self.net.sgen.p_kw = 0
-            self.net.sgen.q_kvar = 0
-
-            self.net.gen.p_kw = 0
-            self.net.gen.q_kvar = 0
-            self.net.gen.min_p_kw = 0
-            self.net.gen.max_p_kw = 0
-            self.net.gen.min_q_kvar = 0
-            self.net.gen.max_q_kvar = 0
-            self.net.gen.sn_kva = 0
-
-            self.net.shunt.p_kw = 0
-            self.net.shunt.q_kvar = 0
-            self.net.shunt.in_service = False
+        # if zero_out_gen_shunt_storage:
+        #
+        #     self.net.sgen.p_kw = 0
+        #     self.net.sgen.q_kvar = 0
+        #
+        #     self.net.gen.p_kw = 0
+        #     self.net.gen.q_kvar = 0
+        #     self.net.gen.min_p_kw = 0
+        #     self.net.gen.max_p_kw = 0
+        #     self.net.gen.min_q_kvar = 0
+        #     self.net.gen.max_q_kvar = 0
+        #     self.net.gen.sn_kva = 0
+        #
+        #     self.net.shunt.p_kw = 0
+        #     self.net.shunt.q_kvar = 0
+        #     self.net.shunt.in_service = False
 
         self.reward_val = 0.0
 
@@ -172,49 +175,6 @@ class NetModel(object):
         """
 
         self.net.gen.p_kw = new_gen_p
-
-    def add_battery(self, bus_number, p_init, energy_capacity, init_soc=0.5,
-                    max_p=50, min_p=-50, eff=1.0, capital_cost=0, min_e=0.):
-        """Change the network by adding a battery / storage unit.
-
-        Parameters
-        ----------
-        bus_number: int
-            The bus at which the generator should be added
-        p_init: float
-            The initial real power flow to (positive) / from (negative) the
-            battery for initialization. (Typically zero)
-        energy_capacity: float
-            The energy capacity of the battery.
-        init_soc: float
-            The initial state of charge (between 0 and 1)
-        max_p: float
-            The maximum power *consumption* by the battery (positive)
-        min_p: float
-            The maximum power *production* by the battery (negative)
-        eff: float
-            The efficiency of the battery, assumed to be the same of import and
-            export (between 0 and 1)
-
-        Attributes
-        ----------
-        net: object
-            The network object is updated
-        """
-
-        pp.create_storage(self.net, bus_number, p_init, energy_capacity,
-                          soc_percent=init_soc, max_p_kw=max_p, min_p_kw=min_p,
-                          min_e_kwh=min_e)
-        if 'eff' not in self.net.storage.columns:
-            self.net.storage['eff'] = eff
-        else:
-            idx = self.net.storage.index[-1]
-            self.net.storage.loc[idx, 'eff'] = eff
-        if 'cap_cost' not in self.net.storage.columns:
-            self.net.storage['cap_cost'] = capital_cost
-        else:
-            idx = self.net.storage.index[-1]
-            self.net.storage.loc[idx, 'capital_cost'] = capital_cost
     
     def update_batteries(self, battery_powers, dt):
         """Update the batteries / storage units in the network.
