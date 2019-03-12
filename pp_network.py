@@ -12,8 +12,8 @@ class NetModel(object):
     generators, batteries, lines, buses, and transformers. The state of each is
     tracked in a pandapower network object.
     """
-    def __init__(self, config=None, net_given=None, env_name='Six_Bus_POC', tstep=1./60,
-                 net_zero_reward=1.0, baseline=True):
+    def __init__(self, config=None, net_given=None, env_name='Six_Bus_POC',
+                 tstep=1./60, net_zero_reward=1.0, baseline=True):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
