@@ -95,16 +95,17 @@ class StandardLVNetwork(object):
         if not self.clear_loads_sgen:
             if net.load.shape[0] > 0:
                 for idx, row in net.load.iterrows():
-                    # self.static_feeds.update({row['bus']: row['p_kw'] * np.ones(self.max_ep_len)})
                     self.static_feeds[row['bus']] = row['p_kw'] * np.ones(self.max_ep_len)
             if net.sgen.shape[0] > 0:
                 for idx, row in net.sgen.iterrows():
-                    # self.static_feeds.update({row['bus']: row['p_kw'] * np.ones(self.max_ep_len)})
                     self.static_feeds[row['bus']] = row['p_kw'] * np.ones(self.max_ep_len)
 
         self.battery_locations = None  # Specify specific locations, or can pick options for random generation:
         self.percent_battery_buses = 0.5  # How many of the buses should be assigned batteries
         self.batteries_on_leaf_nodes_only = True
+
+        self.gen_locations = [4]
+        self.gen_max_p_kw = [20.0]
 
         self.init_soc = 0.5
         self.energy_capacity = 20.0

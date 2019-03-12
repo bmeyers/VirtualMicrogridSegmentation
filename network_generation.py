@@ -11,7 +11,8 @@ def get_net(config):
     if config.env_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
         return standard_lv(config.env_name, config.remove_q, config.static_feeds_new, config.clear_loads_sgen,
                            config.clear_gen, config.battery_locations, config.percent_battery_buses,
-                           config.batteries_on_leaf_nodes_only, config.init_soc, config.energy_capacity)
+                           config.batteries_on_leaf_nodes_only, config.init_soc, config.energy_capacity,
+                           config.gen_locations)
 
 
 def add_battery(net, bus_number, p_init, energy_capacity, init_soc=0.5,
@@ -119,7 +120,7 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
 
 def standard_lv(env_name, remove_q=True, static_feeds_new=None, clear_loads_sgen=False, clear_gen=True,
                 battery_locations=None, percent_battery_buses=0.5, batteries_on_leaf_nodes_only=True, init_soc=0.5,
-                energy_capacity=20.0):
+                energy_capacity=20.0, gen_locations=None):
 
     net = mknet(network_class=env_name)
 
@@ -169,7 +170,10 @@ def standard_lv(env_name, remove_q=True, static_feeds_new=None, clear_loads_sgen
                     init_soc_here = init_soc[idx]
             add_battery(net, bus_number=bus_number, p_init=0.0, energy_capacity=energy_capacity_here,
                         init_soc=init_soc_here)
-        
+    # Add controllable generator
+    if gen_locations is not None:
+        for idx, bus_number in enumerate(gen_locations):
+            pp.create_gen(net, bus_number, p_kw=0.0, min_q_kvar=0.0, max_q_kvar=0.0)
 
     if static_feeds_new is None:
         print('No loads or generation added to network')
