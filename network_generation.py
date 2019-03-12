@@ -150,10 +150,10 @@ def standard_lv(env_name, remove_q=True, static_feeds_new=None, clear_loads_sgen
                 if i not in net.line.from_bus.values:
                     leaf_nodes.append(i)
             applied_battery_locations = np.random.choice(leaf_nodes, int(percent_battery_buses * len(leaf_nodes)),
-                                                 replace=False)
+                                                         replace=False)
         else:
-            applied_battery_locations = np.random.choice(net.bus.shape[0], int(percent_battery_buses * net.bus.shape[0]),
-                                                 replace=False)
+            applied_battery_locations = np.random.choice(net.bus.shape[0],
+                                                         int(percent_battery_buses * net.bus.shape[0]), replace=False)
     if len(applied_battery_locations) > 0:
         num_batteries = len(applied_battery_locations)
         for idx, bus_number in enumerate(applied_battery_locations):
