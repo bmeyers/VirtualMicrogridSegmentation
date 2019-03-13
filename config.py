@@ -1,7 +1,15 @@
 import numpy as np
 from pandapower.networks import create_synthetic_voltage_control_lv_network as mknet
 
+
 class ConfigSixBusPOC(object):
+    """The configurations for the proof of concept (POC) simplest network used in this project.
+
+    The configurations include parameters for the learning algorithm as well as for building and initializing the
+    network components. The 6 bus POC is a symmetrical network (actually with 8 buses in this build out), designed
+    to show that the two sides can be isolated from each other. To change the values initialized here, change config
+    after it is instantiated before using it to build the network.
+    """
     def __init__(self, use_baseline):
         self.env_name = 'Six_Bus_POC'
 
@@ -51,6 +59,20 @@ class ConfigSixBusPOC(object):
 
 
 class StandardLVNetwork(object):
+    """The configurations for using any of the standard low voltage (LV) test networks shipped with pandapower.
+
+    Options in this set up include choices to remove the generation and load elements built in to the test network, and
+    the option to remove all sources and sinks of reactive power, q. By adding to the dictionary static_feeds_new you
+    can create new loads or static generators on a custom schedule.
+
+    To add controllable resources you can specify the
+    locations of new generators, or specify the addition of batteries: either give their locations (by bus number), or
+    have them assigned randomly. If percent_battery_buses is non zero (must be in the interval [0, 1]) and
+    batteries_on_leaf_nodes_only is False, then percent_battery_buses percent of all the buses will be assigned storage.
+    If batteries_on_leaf_nodes_only is True, then percent_battery_buses percent of all the leaf node buses will be
+    assigned storage. The initial states of charge (soc) and the capacities can also be changed: these can either be
+    floats or lists with length equal to the number of storage elements in the network.
+    """
     def __init__(self, env_name, use_baseline):
         self.env_name = env_name
 
@@ -122,6 +144,7 @@ class StandardLVNetwork(object):
 
 
 def get_config(env_name, baseline):
+    """Given an environment name and the baseline option, return the configuration."""
     if env_name == 'Six_Bus_POC':
         return ConfigSixBusPOC(baseline)
     if env_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:

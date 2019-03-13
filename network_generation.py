@@ -4,6 +4,7 @@ from pandapower.networks import create_synthetic_voltage_control_lv_network as m
 
 
 def get_net(config):
+    """Given the configuration, call a function to create the network object."""
     if config.env_name == 'Six_Bus_POC':
         return six_bus(config.vn_high, config.vn_low, config.length_km,
                        config.std_type, config.battery_locations, config.init_soc,
@@ -17,47 +18,48 @@ def get_net(config):
 
 def add_battery(net, bus_number, p_init, energy_capacity, init_soc=0.5,
                 max_p=50, min_p=-50, eff=1.0, capital_cost=0, min_e=0.):
-    """Change the network by adding a battery / storage unit. """
+    """Change the network by adding a battery / storage unit.
+
+    This function creates a storage element in net, and adds two non-standard columns: efficiency and capital cost.
+
+    Parameters
+    ----------
+    net: class
+        The pandapower network model
+    bus_number: int
+        Where the battery will be added
+    p_init: float
+        The power draw / input of the battery on initialization
+    init_soc: float
+        The state of charge
+    max_p: float
+        The max rate that power can be drawn by the battery
+    min_p: float
+        The max rate that power can be pulled from the battery (negative).
+    eff: float
+        The efficiency
+    capital_cost: float
+        The capital cost of the battery
+    min_e: float
+        The minimum energy in the battery
+    """
     pp.create_storage(net, bus_number, p_init, energy_capacity,
                       soc_percent=init_soc, max_p_kw=max_p, min_p_kw=min_p,
                       min_e_kwh=min_e)
     idx = net.storage.index[-1]
     net.storage.loc[idx, 'eff'] = eff
-    idx = net.storage.index[-1]
     net.storage.loc[idx, 'cap_cost'] = capital_cost
-
-
-def add_generation(net, bus_number, init_real_power, set_limits=False,
-                   min_p_kw=0, max_p_kw=0, min_q_kvar=0,
-                   max_q_kvar=0):
-    """Change the network by adding a traditional generator.
-
-    Parameters
-    ----------
-    bus_number: int
-        The bus at which the generator should be added
-    init_real_power: float
-        The real power generation of the generator for initialization.
-    set_limits: bool
-        Whether or not the initialization includes limits on the real and reactive power flows.
-    min_p_kw, max_p_kw, min_q_kvar, max_q_kvar: float
-        Power limits on the generator.
-
-    Attributes
-    ----------
-    net: object
-        The network object is updated
-    """
-    if set_limits:
-        pp.create_gen(net, bus_number, init_real_power,
-                              min_p_kw=min_p_kw, max_p_kw=max_p_kw,
-                              min_q_kvar=min_q_kvar, max_q_kvar=max_q_kvar)
-    else:
-        pp.create_gen(net, bus_number, init_real_power)
 
 
 def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', battery_locations=[3, 6], init_soc=0.5,
             energy_capacity=20.0, static_feeds=None):
+    """This function creates the network model for the 6 bus POC network from scratch.
+
+    Buses and lines are added to an empty network based on a hard-coded topology and parameters from the config file
+    (seen as inputs). The only controllable storage added in this network are batteries, and the input static_feeds is
+    used to add loads and static generators which are not controlled by the agent. The first value in the series is
+    taken for initialization of those elements.
+    """
     net = pp.create_empty_network(name='6bus', f_hz=60., sn_kva=100.)
     # create buses
     for i in range(8):
@@ -121,6 +123,21 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
 def standard_lv(env_name, remove_q=True, static_feeds_new=None, clear_loads_sgen=False, clear_gen=True,
                 battery_locations=None, percent_battery_buses=0.5, batteries_on_leaf_nodes_only=True, init_soc=0.5,
                 energy_capacity=20.0, gen_locations=None):
+    """This function creates a network model using the set of synthetic voltage control low voltage (LV) networks from
+    pandapower.
+
+    The environment name, env_name, chooses which of the models to create out of 'rural_1', 'rural_2', 'village_1',
+    'village_2', and 'suburb_1'.
+
+    Then options can be triggered to remove all reactive power components from the network (as we do in this project),
+    or to remove static generators, loads, and generators that come with the standard model of the network. New
+    batteries and generators are added which will be used as controllable resources by the agent.
+
+    Static_feeds is a dictionary used by other functions to define the state of the network as we step through time, and
+    contains the power values of the non-controllable elements: static generators and loads. In this method we use
+    static_feeds_new, a subset of static_feeds, to create new loads and static generators in the network that did not
+    ship with the model.
+    """
 
     net = mknet(network_class=env_name)
 
