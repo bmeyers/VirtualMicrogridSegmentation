@@ -1,9 +1,6 @@
 import numpy as np
 import pandas as pd
 import pandapower as pp
-from pandapower.networks import \
-    create_synthetic_voltage_control_lv_network as mknet
-
 from config import get_config
 from network_generation import get_net
 
@@ -15,28 +12,21 @@ class NetModel(object):
     generators, batteries, lines, buses, and transformers. The state of each is
     tracked in a pandapower network object.
     """
-
-    def __init__(self, net_given=None, network_name='rural_1',
-                 zero_out_gen_shunt_storage=False, tstep=1. / 60,
-                 net_zero_reward=1.0, env_name=None, baseline=True,
-                 config=None):
+    def __init__(self, config=None, net_given=None, env_name='Six_Bus_POC',
+                 tstep=1./60, net_zero_reward=1.0, baseline=True):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
         if config is not None:
             self.config = config
             self.net = get_net(self.config)
-        elif env_name is not None:
-            self.config = get_config(env_name, baseline)
-            self.net = get_net(self.config)
         elif net_given is not None:
             self.net = net_given
             self.network_name = 'custom_network'
             self.config = None
         else:
-            self.net = mknet(network_class=network_name)
-            self.network_name = network_name
-            self.config = None
+            self.config = get_config(env_name, baseline)
+            self.net = get_net(self.config)
 
         self.reward_val = 0.0
 
@@ -118,54 +108,8 @@ class NetModel(object):
         state = np.concatenate([p_load, p_sgen, p_gen, p_storage, soc_storage])
         return state
 
-    def add_sgen(self, bus_number, init_real_power, init_react_power=0.0):
-        """Change the network by adding a static generator.
-
-        Parameters
-        ----------
-        bus_number: int
-            The bus at which the static generator should be added
-        init_real_power: float
-            The real power generation of the static generator for initialization.
-        init_react_power: float
-            The reactive power generation of the static generator for initialization.
-
-        Attributes
-        ----------
-        net: object
-            The network object is updated
-        """
-        pp.create_sgen(self.net, bus_number, init_real_power, init_react_power)
-
-    def add_generation(self, bus_number, init_real_power, set_limits=False,
-                       min_p_kw=0, max_p_kw=0, min_q_kvar=0,
-                       max_q_kvar=0):
-        """Change the network by adding a traditional generator.
-
-        Parameters
-        ----------
-        bus_number: int
-            The bus at which the generator should be added
-        init_real_power: float
-            The real power generation of the generator for initialization.
-        set_limits: bool
-            Whether or not the initialization includes limits on the real and reactive power flows.
-        min_p_kw, max_p_kw, min_q_kvar, max_q_kvar: float
-            Power limits on the generator.
-
-        Attributes
-        ----------
-        net: object
-            The network object is updated
-        """
-        if set_limits:
-            pp.create_gen(self.net, bus_number, init_real_power,
-                          min_p_kw=min_p_kw, max_p_kw=max_p_kw,
-                          min_q_kvar=min_q_kvar, max_q_kvar=max_q_kvar)
-        else:
-            pp.create_gen(self.net, bus_number, init_real_power)
-
     def update_loads(self, new_p=None, new_q=None):
+
         """Update the loads in the network.
 
         This method assumes that the orders match, i.e. the order the buses in
