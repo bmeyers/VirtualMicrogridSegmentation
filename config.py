@@ -24,7 +24,7 @@ class ConfigSixBusPOC(object):
         self.summary_freq = 1
 
         # model and training config
-        self.num_batches            = 100 # number of batches trained on
+        self.num_batches            = 500 # number of batches trained on
         self.batch_size             = 1000 # number of steps used to compute each policy update
         self.max_ep_len             = 60 # maximum episode length
         self.learning_rate          = 3e-2
