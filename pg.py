@@ -426,11 +426,6 @@ class PG(object):
       msg = "Average reward: {:04.2f} +/- {:04.2f}".format(avg_reward, sigma_reward)
       self.logger.info(msg)
 
-      if  self.config.record and (last_record > self.config.record_freq):
-        self.logger.info("Recording...")
-        last_record =0
-        self.record()
-
     self.logger.info("- Training done.")
     export_plot(scores_eval, "Score", config.env_name, self.config.plot_output)
 
