@@ -91,19 +91,24 @@ class PG(object):
         self.action_placeholder, type: depends on the self.discrete
         self.advantage_placeholder, type: tf.float32
     """
-    self.observation_placeholder = tf.placeholder(shape=[None, self.observation_dim], dtype=tf.float32)
-    self.action_placeholder = tf.placeholder(shape=[None, self.action_dim], dtype=tf.float32)
+    self.observation_placeholder = tf.placeholder(shape=[None, self.observation_dim],
+                                                  dtype=tf.float32,
+                                                  name='observation')
+    self.action_placeholder = tf.placeholder(shape=[None, self.action_dim],
+                                             dtype=tf.float32,
+                                             name='action')
 
     # Define a placeholder for advantages
-    self.advantage_placeholder = tf.placeholder(shape=[None], dtype=tf.float32)
+    self.advantage_placeholder = tf.placeholder(shape=[None],
+                                                dtype=tf.float32,
+                                                name='advantage')
 
   def build_policy_network_op(self, scope = "policy_network"):
     """
     Build the policy network, construct the tensorflow operation to sample
     actions from the policy network outputs, and compute the log probabilities
     of the actions taken (for computing the loss later). These operations are
-    stored in self.sampled_action and self.logprob. Must handle both settings
-    of self.discrete.
+    stored in self.sampled_action and self.logprob.
 
     Args:
             scope: the scope of the neural network
