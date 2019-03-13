@@ -455,28 +455,14 @@ class PG(object):
     self.logger.info(msg)
     return avg_reward
 
-  def record(self):
-     """
-     Recreate an env and record a video for one episode. Written by course staff.
-     """
-     env = gym.make(self.config.env_name)
-     env = gym.wrappers.Monitor(env, self.config.record_path, video_callable=lambda x: True, resume=True)
-     self.evaluate(env, 1)
-
   def run(self):
     """
     Apply procedures of training for a PG. Written by course staff.
     """
     # initialize
     self.initialize()
-    # record one game at the beginning
-    if self.config.record:
-        self.record()
     # model
     self.train()
-    # record one game at the end
-    if self.config.record:
-      self.record()
 
 if __name__ == '__main__':
     args = parser.parse_args()
