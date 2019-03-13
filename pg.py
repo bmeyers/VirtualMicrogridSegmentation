@@ -157,7 +157,7 @@ class PG(object):
     self.baseline = tf.squeeze(build_mlp(self.observation_placeholder, 1, scope,
                                          self.config.n_layers, self.config.layer_size))
 
-    self.baseline_target_placeholder = tf.placeholder(shape=[None], dtype=tf.float32)
+    self.baseline_target_placeholder = tf.placeholder(shape=[None], dtype=tf.float32, name='baseline')
 
     self.baseline_loss = tf.losses.mean_squared_error(labels=self.baseline_target_placeholder,
                                                       predictions=self.baseline)
