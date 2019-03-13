@@ -277,3 +277,7 @@ class NetModel(object):
         for c in incurred_costs:
             self.reward_val -= c
         return self.reward_val
+
+if __name__ == "__main__":
+    env1 = NetModel(env_name='suburb_1')
+
