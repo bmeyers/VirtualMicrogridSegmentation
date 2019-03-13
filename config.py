@@ -33,6 +33,8 @@ class ConfigSixBusPOC(object):
         self.normalize_advantage    = True
 
         # environment generation
+        self.tstep = 1. / 60
+        self.net_zero_reward = 1.0
         self.vn_high = 20
         self.vn_low = 0.4
         self.length_km = 0.03
@@ -100,13 +102,9 @@ class StandardLVNetwork(object):
         self.clear_gen = True
 
         # environment generation
+        self.tstep = 1. / 60
+        self.net_zero_reward = 1.0
         self.static_feeds_new = None  # Acts how static_feeds does in the 6BusPOC config
-        # self.static_feeds_new = {
-        #     3: -10 * np.ones(self.max_ep_len),
-        #     6: -10 * np.ones(self.max_ep_len),
-        #     4: 10 * np.ones(self.max_ep_len),
-        #     7: 10 * np.ones(self.max_ep_len)
-        # }
 
         # Fill static_feeds with the loads and static generators that ship with the network
         if self.static_feeds_new is None:

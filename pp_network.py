@@ -12,26 +12,21 @@ class NetModel(object):
     generators, batteries, lines, buses, and transformers. The state of each is
     tracked in a pandapower network object.
     """
-    def __init__(self, config=None, net_given=None, env_name='Six_Bus_POC',
-                 tstep=1./60, net_zero_reward=1.0, baseline=True):
+    def __init__(self, config=None, env_name='Six_Bus_POC', baseline=True):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
         if config is not None:
             self.config = config
             self.net = get_net(self.config)
-        elif net_given is not None:
-            self.net = net_given
-            self.network_name = 'custom_network'
-            self.config = None
         else:
             self.config = get_config(env_name, baseline)
             self.net = get_net(self.config)
 
         self.reward_val = 0.0
 
-        self.tstep = tstep
-        self.net_zero_reward = net_zero_reward
+        self.tstep = self.config.tstep
+        self.net_zero_reward = self.config.net_zero_reward
         self.initial_net = pp.copy.deepcopy(self.net)
         self.time = 0
         self.n_load = len(self.net.load)
