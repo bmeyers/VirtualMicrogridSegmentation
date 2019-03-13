@@ -74,7 +74,7 @@ class NetModel(object):
         # Collect items to return
         state = self.get_state()
         reward = self.calculate_reward()
-        done = self.time >= self.config.max_ep_len
+        done = self.time >= self.config.max_ep_len - 1
         info = ''
         return state, reward, done, info
 
