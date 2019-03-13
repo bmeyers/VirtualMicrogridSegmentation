@@ -8,11 +8,12 @@ import logging
 import time
 import numpy as np
 import tensorflow as tf
-import gym
 import scipy.signal
 import os
 import time
 import inspect
+
+from pp_network import NetModel
 from utils.general import get_logger, Progbar, export_plot
 from config import get_config
 
@@ -480,7 +481,7 @@ class PG(object):
 if __name__ == '__main__':
     args = parser.parse_args()
     config = get_config(args.env_name, args.use_baseline)
-    env = gym.make(config.env_name)
+    env = NetModel(config=config)
     # train model
     model = PG(env, config)
     model.run()
