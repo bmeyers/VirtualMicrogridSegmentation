@@ -76,8 +76,6 @@ class PG(object):
       self.logger = get_logger(config.log_path)
     self.env = env
 
-    # discrete vs continuous action space
-    self.discrete = False
     self.observation_dim = self.env.observation_dim
     self.action_dim = self.env.action_dim
 
@@ -94,10 +92,7 @@ class PG(object):
         self.advantage_placeholder, type: tf.float32
     """
     self.observation_placeholder = tf.placeholder(shape=[None, self.observation_dim], dtype=tf.float32)
-    if self.discrete:
-      self.action_placeholder = tf.placeholder(shape=[None], dtype=tf.int32)
-    else:
-      self.action_placeholder = tf.placeholder(shape=[None, self.action_dim], dtype=tf.float32)
+    self.action_placeholder = tf.placeholder(shape=[None, self.action_dim], dtype=tf.float32)
 
     # Define a placeholder for advantages
     self.advantage_placeholder = tf.placeholder(shape=[None], dtype=tf.float32)
@@ -113,21 +108,13 @@ class PG(object):
     Args:
             scope: the scope of the neural network
     """
-
-    if self.discrete:
-      action_logits = build_mlp(self.observation_placeholder, self.action_dim, scope,
-                                self.config.n_layers, self.config.layer_size, output_activation=None)
-      self.sampled_action = tf.squeeze(tf.multinomial(action_logits, 1), axis=1)
-      self.logprob = - tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.action_placeholder, logits=action_logits)
-
-    else:
-      action_means = build_mlp(self.observation_placeholder, self.action_dim, scope,
-                                config.n_layers, config.layer_size, output_activation=None)
-      with tf.variable_scope(scope):
-        log_std = tf.get_variable("log_std", [self.action_dim])
-      self.sampled_action = action_means + tf.multiply(tf.exp(log_std), tf.random_normal(tf.shape(action_means)))
-      mvn = tf.contrib.distributions.MultivariateNormalDiag(loc=action_means, scale_diag=tf.exp(log_std))
-      self.logprob = mvn.log_prob(self.action_placeholder)
+    action_means = build_mlp(self.observation_placeholder, self.action_dim, scope,
+                              config.n_layers, config.layer_size, output_activation=None)
+    with tf.variable_scope(scope):
+      log_std = tf.get_variable("log_std", [self.action_dim])
+    self.sampled_action = action_means + tf.multiply(tf.exp(log_std), tf.random_normal(tf.shape(action_means)))
+    mvn = tf.contrib.distributions.MultivariateNormalDiag(loc=action_means, scale_diag=tf.exp(log_std))
+    self.logprob = mvn.log_prob(self.action_placeholder)
 
   def add_loss_op(self):
     """
