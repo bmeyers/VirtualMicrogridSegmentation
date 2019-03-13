@@ -77,9 +77,9 @@ class PG(object):
     self.env = env
 
     # discrete vs continuous action space
-    self.discrete = isinstance(env.action_space, gym.spaces.Discrete)
-    self.observation_dim = self.env.observation_space.shape[0]
-    self.action_dim = self.env.action_space.n if self.discrete else self.env.action_space.shape[0]
+    self.discrete = False
+    self.observation_dim = self.env.observation_dim
+    self.action_dim = self.env.action_dim
 
     self.lr = self.config.learning_rate
 
