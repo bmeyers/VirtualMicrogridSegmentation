@@ -113,9 +113,10 @@ class PG(object):
     Args:
             scope: the scope of the neural network
     """
-    action_means = build_mlp(self.observation_placeholder, self.action_dim, scope,
-                              config.n_layers, config.layer_size, output_activation=None)
-    with tf.variable_scope(scope):
+    action_means = build_mlp(self.observation_placeholder, self.action_dim,
+                             scope, self.config.n_layers, self.config.layer_size,
+                             output_activation=None)
+    with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
       log_std = tf.get_variable("log_std", [self.action_dim])
     self.sampled_action = action_means + tf.multiply(tf.exp(log_std), tf.random_normal(tf.shape(action_means)))
     mvn = tf.contrib.distributions.MultivariateNormalDiag(loc=action_means, scale_diag=tf.exp(log_std))
