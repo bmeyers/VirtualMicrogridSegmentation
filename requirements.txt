@@ -4,6 +4,6 @@ jupyter
 pandapower
 packaging
 plotly
-python-igraph
 numba
 tensorflow
+python-igraph
