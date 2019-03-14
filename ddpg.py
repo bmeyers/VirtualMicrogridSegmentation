@@ -1,6 +1,8 @@
 # -*- coding: UTF-8 -*-
 """The base of this code was prepared for a homework by course staff for CS234 at Stanford, Winter 2019. We have since
-altered it to implement DDPG rather than traditional PG."""
+altered it to implement DDPG rather than traditional PG. Also inspired by code published by Patrick Emami on his blog
+"Deep Deterministic Policy Gradients in TensorFlow": https://pemami4911.github.io/blog/2016/08/21/ddpg-rl.html
+"""
 
 import os
 import argparse
@@ -26,7 +28,7 @@ parser.add_argument('--no-baseline', dest='use_baseline', action='store_false')
 parser.set_defaults(use_baseline=True)
 
 
-def build_actor(mlp_input, output_size, scope, n_layers, size, min_p, max_p):
+def build_actor(actor_input, output_size, scope, n_layers, size, min_p, max_p):
   """
   Build a feed forward network (multi-layer perceptron, or mlp)
   with 'n_layers' hidden layers, each of size 'size' units.
@@ -40,13 +42,18 @@ def build_actor(mlp_input, output_size, scope, n_layers, size, min_p, max_p):
           output_activation: the activation of output layer
   Returns:
           The tensor output of the network
+
+  Created working with code published by Patrick Emami on his blog "Deep Deterministic Policy Gradients in TensorFlow":
+  https://pemami4911.github.io/blog/2016/08/21/ddpg-rl.html
+
   """
 
   with tf.variable_scope(scope):
-    out = tf.layers.flatten(mlp_input)
+    out = tf.layers.flatten(actor_input)
     for i in range(n_layers):
-      out = tf.layers.dense(out, units=size, activation=tf.nn.relu)
+      out = tf.layers.dense(out, units=size)
       out = tf.layers.batch_normalization(out)
+      out = tf.nn.relu(out)
     out = tf.layers.dense(out, units=output_size, activation=tf.nn.tanh)
 
     centers = (min_p + max_p)/2.0
@@ -56,7 +63,7 @@ def build_actor(mlp_input, output_size, scope, n_layers, size, min_p, max_p):
   return out
 
 
-def build_critic(mlp_input, output_size, scope, n_layers, size):
+def build_critic(mlp_input, actions_input, scope, n_layers, size):
   """
   Build a feed forward network (multi-layer perceptron, or mlp)
   with 'n_layers' hidden layers, each of size 'size' units.
@@ -70,13 +77,27 @@ def build_critic(mlp_input, output_size, scope, n_layers, size):
           output_activation: the activation of output layer
   Returns:
           The tensor output of the network
+
+  Created working with code published by Patrick Emami on his blog "Deep Deterministic Policy Gradients in TensorFlow":
+  https://pemami4911.github.io/blog/2016/08/21/ddpg-rl.html
   """
 
   with tf.variable_scope(scope):
+
     out = tf.layers.flatten(mlp_input)
-    for i in range(n_layers):
+    out = tf.layers.dense(out, units=size, activation=None)
+    out = tf.layers.batch_normalization(out)
+    out = tf.nn.relu(out)
+
+    t1 = tf.layers.dense(out, units=size)
+    t2 = tf.layers.dense(actions_input, units=size)
+
+    out = tf.nn.relu(tf.matmul(out, t1.W) + tf.matmul(actions_input, t2.W) + t2.b)
+
+    for i in range(n_layers-2):
       out = tf.layers.dense(out, units=size, activation=tf.nn.relu)
-    out = tf.layers.dense(out, units=output_size, activation=output_activation)
+
+    out = tf.layers.dense(out, units=1)
 
   return out
 
