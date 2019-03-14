@@ -26,7 +26,7 @@ parser.add_argument('--no-baseline', dest='use_baseline', action='store_false')
 parser.set_defaults(use_baseline=True)
 
 
-def build_actor(mlp_input, output_size, scope, n_layers, size):
+def build_actor(mlp_input, output_size, scope, n_layers, size, min_p, max_p):
   """
   Build a feed forward network (multi-layer perceptron, or mlp)
   with 'n_layers' hidden layers, each of size 'size' units.
@@ -49,10 +49,14 @@ def build_actor(mlp_input, output_size, scope, n_layers, size):
       out = tf.layers.batch_normalization(out)
     out = tf.layers.dense(out, units=output_size, activation=tf.nn.tanh)
 
+    centers = (min_p + max_p)/2.0
+    scales = (max_p - min_p)/2.0
+    out = tf.multiply(out, scales) + centers
 
   return out
 
-def build_critic(mlp_input, output_size, scope, n_layers, size, output_activation=None):
+
+def build_critic(mlp_input, output_size, scope, n_layers, size):
   """
   Build a feed forward network (multi-layer perceptron, or mlp)
   with 'n_layers' hidden layers, each of size 'size' units.
@@ -77,7 +81,7 @@ def build_critic(mlp_input, output_size, scope, n_layers, size, output_activatio
   return out
 
 
-class PG(object):
+class DPG(object):
   """
   Abstract Class for implementing a Policy Gradient Based Algorithm
   """
@@ -107,6 +111,18 @@ class PG(object):
     self.action_dim = self.env.action_dim
 
     self.lr = self.config.learning_rate
+
+    # action space limits
+    min_p = []
+    max_p = []
+    if len(env.net.gen)>0:
+      min_p.append(env.net.gen.min_p_kw)
+      max_p.append(env.net.gen.max_p_kw)
+    if len(env.net.storage)>0:
+      min_p.append(env.net.storage.min_p_kw)
+      max_p.append(env.net.storage.max_p_kw)
+    self.min_p = np.array(min_p)
+    self.max_p = np.array(max_p)
 
     # build model
     self.build()
@@ -484,5 +500,5 @@ if __name__ == '__main__':
     config = get_config(args.env_name, args.use_baseline)
     env = NetModel(config=config)
     # train model
-    model = PG(env, config)
+    model = DPG(env, config)
     model.run()
