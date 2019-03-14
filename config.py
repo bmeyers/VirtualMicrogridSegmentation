@@ -49,6 +49,15 @@ class ConfigSixBusPOC(object):
         self.init_soc = 0.5
         self.energy_capacity = 20.0
 
+        # Generation
+        self.gen_locations = None
+
+        # Action space
+        self.gen_p_min = -50.0
+        self.gen_p_max = 0.0
+        self.storage_p_min = -50.0
+        self.storage_p_max = 50.0
+
         # parameters for the policy and baseline models
         self.n_layers               = 1
         self.layer_size             = 16
@@ -124,6 +133,13 @@ class StandardLVNetwork(object):
         self.percent_battery_buses = 0.5  # How many of the buses should be assigned batteries
         self.batteries_on_leaf_nodes_only = True
 
+        # Action space
+        self.gen_p_min = -50.0
+        self.gen_p_max = 0.0
+        self.storage_p_min = -50.0
+        self.storage_p_max = 50.0
+
+        # Generation
         self.gen_locations = [4]
         self.gen_max_p_kw = [20.0]
 
