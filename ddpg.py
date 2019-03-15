@@ -16,6 +16,7 @@ import os
 import time
 import inspect
 from collections import deque
+import random
 
 from pp_network import NetModel
 from utils.general import get_logger, Progbar, export_plot
@@ -247,7 +248,7 @@ class CriticNetwork(object):
         weights1 = tf.get_default_graph().get_tensor_by_name(
             os.path.split(t1.name)[0] + '/kernel:0')
         weights2 = tf.get_default_graph().get_tensor_by_name(
-            os.path.split(t1.name)[0] + '/kernel:0')
+            os.path.split(t2.name)[0] + '/kernel:0')
         bias = tf.get_default_graph().get_tensor_by_name(
             os.path.split(t1.name)[0] + '/bias:0')
         out = tf.nn.relu(
@@ -492,7 +493,8 @@ class DPG(object):
                         s2_batch, self.actor.predict_target(s2_batch)
                     )
                     y_i = np.array(r_batch)
-                    y_i[~t_batch] = (r_batch + self.gamma * target_q)[~t_batch]
+                    y_i[~t_batch] = (r_batch +
+                                     self.gamma * target_q.squeeze())[~t_batch]
                     # Update critic given targets
                     predicted_q_val, _ = self.critic.train(
                         s_batch, a_batch, y_i[:, None]
@@ -515,7 +517,7 @@ class DPG(object):
                     break
 
             # tf stuff
-            if (i % self.config.summary_freq_2 == 0):
+            if (i % self.config.summary_freq2 == 0):
                 scores_eval.extend(total_rewards)
                 self.update_averages(total_rewards, scores_eval, ave_max_q)
                 self.record_summary(i)
