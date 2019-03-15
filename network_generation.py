@@ -8,8 +8,9 @@ def get_net(config):
     if config.env_name == 'Six_Bus_POC':
         return six_bus(config.vn_high, config.vn_low, config.length_km,
                        config.std_type, config.battery_locations, config.init_soc,
-                       config.energy_capacity, config.static_feeds, config.gen_p_max, config.gen_p_min,
-                       config.storage_p_max, config.storage_p_min)
+                       config.energy_capacity, config.static_feeds, config.gen_locations,
+                       config.gen_p_max, config.gen_p_min, config.storage_p_max,
+                       config.storage_p_min)
     if config.env_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
         return standard_lv(config.env_name, config.remove_q, config.static_feeds_new, config.clear_loads_sgen,
                            config.clear_gen, config.battery_locations, config.percent_battery_buses,
