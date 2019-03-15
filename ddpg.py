@@ -293,7 +293,7 @@ class CriticNetwork(object):
             out = tf.layers.dense(out, units=self.size, activation=tf.nn.relu)
 
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
-        w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003)
+        w_init = tf.initializers.random_uniform(minval=-0.3, maxval=0.3) # Changed from 0.003 values
         out = tf.layers.dense(out, units=1, kernel_initializer=w_init)
 
         return inputs, action, out
@@ -504,8 +504,8 @@ class DPG(object):
         """
 
         actor_lr_schedule = LinearSchedule(self.config.actor_learning_rate_start, self.config.actor_learning_rate_end,
-                                           self.config.actor_learning_rate_nsteps)
-        noise_schedule = LinearSchedule(0.5, 0.01, self.config.max_episodes*self.config.max_ep_steps)
+                                           self.config.reasonable_max_episodes*self.config.max_ep_steps)
+        noise_schedule = LinearSchedule(0.5, 0.01, self.config.reasonable_max_episodes*self.config.max_ep_steps)
 
         self.actor.update_target_network()
         self.critic.update_target_network()
