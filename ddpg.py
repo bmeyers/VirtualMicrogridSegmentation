@@ -181,7 +181,8 @@ class DPG(object):
     self.observation_dim = self.env.observation_dim
     self.action_dim = self.env.action_dim
 
-    self.lr = self.config.learning_rate
+    self.actor_lr = self.config.actor_learning_rate
+    self.critic_lr = self.config.critic_learning_rate
 
     # action space limits
     min_p = []
