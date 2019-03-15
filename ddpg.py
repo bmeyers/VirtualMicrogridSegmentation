@@ -76,6 +76,33 @@ class ReplayBuffer(object):
         self.buffer.clear()
         self.count = 0
 
+
+class LinearSchedule(object):
+    def __init__(self, eps_begin, eps_end, nsteps):
+        """
+        Args:
+            eps_begin: initial exploration
+            eps_end: end exploration
+            nsteps: number of steps between the two values of eps
+        """
+        self.epsilon = eps_begin
+        self.eps_begin = eps_begin
+        self.eps_end = eps_end
+        self.nsteps = nsteps
+
+    def update(self, t):
+        """
+        Updates epsilon
+
+        Args:
+            t: int
+                frame number
+        """
+        if t <= self.nsteps:
+            self.epsilon = self.eps_begin + (self.eps_end - self.eps_begin) * t / self.nsteps
+        else:
+            self.epsilon = self.eps_end
+
 # ===========================
 #   Actor and Critic DNNs
 #   Based on code published by Patrick Emami on his blog "Deep
@@ -98,13 +125,15 @@ class ActorNetwork(object):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
-        self.learning_rate = learning_rate
+        # self.learning_rate = learning_rate
         self.tau = tau
         self.n_layers = n_layers
         self.size = size
         self.min_p = min_p
         self.max_p = max_p
         self.batch_size = batch_size
+
+        self.actor_lr_placeholder = tf.placeholder(shape=None, dtype=tf.float32)
 
         # Actor Network
         self.inputs, self.out, self.scaled_out = self.create_actor_network()
@@ -133,13 +162,14 @@ class ActorNetwork(object):
         self.actor_gradients = list(map(lambda x: tf.div(x, self.batch_size), self.unnormalized_actor_gradients))
 
         # Optimization Op
-        self.optimize = tf.train.AdamOptimizer(self.learning_rate). \
+        self.optimize = tf.train.AdamOptimizer(self.actor_lr_placeholder). \
             apply_gradients(zip(self.actor_gradients, self.network_params))
 
         self.num_trainable_vars = len(
             self.network_params) + len(self.target_network_params)
 
     def create_actor_network(self):
+
         inputs = tf.placeholder(shape=[None, self.s_dim],
                                 dtype=tf.float32,
                                 name='states')
@@ -159,10 +189,11 @@ class ActorNetwork(object):
 
         return inputs, out, scaled_out
 
-    def train(self, inputs, a_gradient):
+    def train(self, inputs, a_gradient, learning_rate):
         self.sess.run(self.optimize, feed_dict={
             self.inputs: inputs,
-            self.action_gradient: a_gradient
+            self.action_gradient: a_gradient,
+            self.actor_lr_placeholder: learning_rate
         })
 
     def predict(self, inputs):
@@ -352,14 +383,14 @@ class DPG(object):
         self.state_dim = self.env.observation_dim
         self.action_dim = self.env.action_dim
 
-        self.actor_lr = self.config.actor_learning_rate
+        self.actor_lr = self.config.actor_learning_rate_start
         self.critic_lr = self.config.critic_learning_rate
         self.gamma = self.config.gamma
         self.tau = self.config.tau
         self.batch_size = self.config.minibatch_size
 
-        self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
-        #self.actor_noise = lambda: np.random.normal(0, 0.2, size=self.action_dim)
+        # self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
+        self.actor_noise = lambda: np.random.normal(0, 0.5, size=self.action_dim) # changed from 0.2
 
         # action space limits
         min_p = []
@@ -471,6 +502,10 @@ class DPG(object):
         """
         Performs training.
         """
+
+        actor_lr_schedule = LinearSchedule(self.config.actor_learning_rate_start, self.config.actor_learning_rate_end,
+                                           self.config.actor_learning_rate_nsteps)
+
         self.actor.update_target_network()
         self.critic.update_target_network()
         replay_buffer = ReplayBuffer(self.config.buffer_size)
@@ -510,10 +545,11 @@ class DPG(object):
                     # Update the actor policy using the sampled gradient
                     a_outs = self.actor.predict(s_batch)
                     grads = self.critic.action_gradients(s_batch, a_outs)
-                    self.actor.train(s_batch, grads[0])
+                    self.actor.train(s_batch, grads[0], actor_lr_schedule.epsilon)
                     # Update target networks
                     self.actor.update_target_network()
                     self.critic.update_target_network()
+                    actor_lr_schedule.update(i*self.config.max_ep_steps + j)
                 # Housekeeping
                 s = s2
                 ep_reward += r
@@ -566,8 +602,7 @@ class DPG(object):
         self.train()
 
 if __name__ == '__main__':
-    #args = parser.parse_args()
-    #config = get_config(args.env_name)
+
     config = get_config('Six_Bus_POC')
     env = NetModel(config=config)
     # train model

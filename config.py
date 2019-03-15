@@ -38,12 +38,16 @@ class ConfigSixBusPOC(object):
 
         # model and training config - DDPG
         self.tau                    = 0.001
-        self.actor_learning_rate    = 1e-4
+
         self.critic_learning_rate   = 1e-2
         self.buffer_size            = 1e6
         self.minibatch_size         = self.max_ep_len * 4
         self.max_episodes           = self.num_batches * self.batch_size
         self.max_ep_steps           = self.max_ep_len
+
+        self.actor_learning_rate_start = 1e-3
+        self.actor_learning_rate_end = 1e-6
+        self.actor_learning_rate_nsteps = self.max_episodes * self.max_ep_steps  # What should this be?
 
         # environment generation
         self.tstep = 1. / 60
