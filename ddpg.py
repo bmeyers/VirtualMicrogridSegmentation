@@ -339,11 +339,12 @@ class DPG(object):
       self.logger = get_logger(config.log_path)
     self.env = env
 
-    self.observation_dim = self.env.observation_dim
+    self.state_dim = self.env.observation_dim
     self.action_dim = self.env.action_dim
 
     self.actor_lr = self.config.actor_learning_rate
     self.critic_lr = self.config.critic_learning_rate
+    self.gamma = self.config.gamma
     self.tau = self.config.tau
     self.batch_size = self.config.minibatch_size
 
@@ -362,124 +363,8 @@ class DPG(object):
     self.max_p = np.array(max_p)
 
     # build model
-    self.build()
-
-  def add_placeholders_op(self):
-    """
-    Add placeholders for observation, action, and advantage:
-        self.observation_placeholder, type: tf.float32
-        self.action_placeholder, type: depends on the self.discrete
-        self.advantage_placeholder, type: tf.float32
-    """
-    self.observation_placeholder = tf.placeholder(shape=[None, self.observation_dim],
-                                                  dtype=tf.float32,
-                                                  name='observation')
-    self.action_placeholder = tf.placeholder(shape=[None, self.action_dim],
-                                             dtype=tf.float32,
-                                             name='action')
-
-    # Define a placeholder for critic
-    self.critic_placeholder = tf.placeholder(shape=[None],
-                                                dtype=tf.float32,
-                                                name='critic')
-
-  def build_actor_network_op(self, scope="policy_network"):
-    """
-    Build the policy network, construct the tensorflow operation to sample
-    actions from the policy network outputs, and compute the log probabilities
-    of the actions taken (for computing the loss later). These operations are
-    stored in self.sampled_action and self.logprob.
-
-    Args:
-            scope: the scope of the neural network
-    """
-    # Main actor network
-    actions = build_actor(self.observation_placeholder, self.action_dim,
-                          scope, self.config.n_layers, self.config.layer_size,
-                          self.min_p, self.max_p)
-    self.sampled_action = np.clip(actions + self.actor_noise(), self.min_p, self.max_p)
-    # Target actor network
-    target_actions = build_actor(self.observation_placeholder, self.action_dim,
-                                 scope + '_target', self.config.n_layers,
-                                 self.config.layer_size,self.min_p, self.max_p)
-    self.target_sampled_action = np.clip(target_actions + self.actor_noise(), self.min_p, self.max_p)
-
-    self.actor_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope)
-    self.target_actor_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope + '_target')
-    self.update_target_actor_op = \
-      [self.target_actor_vars[i].assign(tf.multiply(self.actor_vars[i], self.tau) +
-                                tf.multiply(self.target_actor_vars[i], 1. - self.tau))
-       for i in range(len(self.target_actor_vars))]
-
-  def add_optimizer_op(self):
-    """
-    Set 'self.train_op' using AdamOptimizer
-    """
-    self.action_gradient = tf.placeholder(shape=[None, self.action_dim],
-                                          dtype=tf.float32,
-                                          name='action_gradient')
-    self.unnormalized_actor_gradients = tf.gradients(
-      self.sampled_action, self.actor_vars, -self.action_gradient
-    )
-    self.actor_gradients = list(map(lambda x: tf.div(x, self.batch_size),
-                                    self.unnormalized_actor_gradients))
-    optimizer = tf.train.AdamOptimizer(learning_rate=self.actor_lr)
-    self.train_actor_op = optimizer.apply_gradients(zip(self.actor_gradients,
-                                                  self.actor_vars))
-
-
-  def add_critic_op(self):
-    """
-    Build the baseline network within the scope.
-
-    In this function we will build the baseline network.
-    Use build_mlp with the same parameters as the policy network to
-    get the baseline estimate. You also have to setup a target
-    placeholder and an update operation so the baseline can be trained.
-
-    Args:
-        scope: the scope of the baseline network
-
-    """
-    with tf.variable_scope("target"): # Is this the right way to do this, or should we just have a placeholder for this
-      # and do all the things with the not target scope elsewhere?
-      self.critic_q_target = tf.squeeze(build_critic(self.observation_placeholder, self.action_placeholder, "target",
-                                                     2, 400))
-
-    with tf.variable_scope("policy_network"):
-      self.critic_q = tf.squeeze(build_critic(self.observation_placeholder, self.action_placeholder, "policy_network",
-                                              2, 400))
-    self.returns_placeholder = tf.placeholder(shape=[None], dtype=tf.float32, name="returns")
-    self.critic_y = self.returns_placeholder + self.config.gamma * self.critic_q_target
-
-    self.critic_loss = tf.losses.mean_squared_error(labels=self.critic_y, predictions=self.critic_q)
-
-    optimizer = tf.train.AdamOptimizer(learning_rate=self.critic_lr)
-    self.update_critic_op = optimizer.minimize(self.critic_loss)
-
-  def build(self):
-    """
-    Build the model by adding all necessary variables.
-
-    Written by course staff.
-    Calling all the operations you already defined above to build the tensorflow graph.
-    """
-
-    # add placeholders
-    self.add_placeholders_op()
-    # create policy net
-    self.build_policy_network_op()
-    # add square loss
-    self.add_loss_op()
-    # add optimizer for the main networks
-    self.add_optimizer_op()
-
-    # add critic
-    self.add_critic_op()
-
-    # add baseline
-    # if self.config.use_baseline:
-    #   self.add_baseline_op()
+    self.actor = None
+    self.critic = None
 
   def initialize(self):
     """
@@ -490,6 +375,15 @@ class DPG(object):
     """
     # create tf session
     self.sess = tf.Session()
+    # Initialize networks
+    self.actor = ActorNetwork(self.sess, self.state_dim, self.action_dim,
+                              self.actor_lr, self.tau, self.config.n_layers,
+                              self.config.layer_size, self.min_p, self.max_p,
+                              self.config.minibatch_size)
+    self.critic = CriticNetwork(self.sess, self.state_dim, self.action_dim,
+                                self.critic_lr, self.tau, self.gamma,
+                                self.config.n_layers, self.config.layer_size,
+                                self.actor.get_num_trainable_vars())
     # tensorboard stuff
     self.add_summary()
     # initialize all variables
