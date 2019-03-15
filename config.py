@@ -41,7 +41,7 @@ class ConfigSixBusPOC(object):
         self.critic_learning_rate   = 1e-2
         self.buffer_size            = 1e6
         self.minibatch_size         = 64
-        self.max_episodes           = 500 * 1000
+        self.max_episodes           = self.num_batches * self.batch_size
         self.max_ep_steps           = self.max_ep_len
 
         # environment generation
@@ -181,7 +181,7 @@ class StandardLVNetwork(object):
             self.max_ep_len = self.batch_size
 
 
-def get_config(env_name, baseline):
+def get_config(env_name, baseline=True):
     """Given an environment name and the baseline option, return the configuration."""
     if env_name == 'Six_Bus_POC':
         return ConfigSixBusPOC(baseline)
