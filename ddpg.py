@@ -210,6 +210,8 @@ class DPG(object):
     self.actor_lr = self.config.actor_learning_rate
     self.critic_lr = self.config.critic_learning_rate
 
+    self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
+
     # action space limits
     min_p = []
     max_p = []
@@ -257,7 +259,7 @@ class DPG(object):
     actions = build_actor(self.observation_placeholder, self.action_dim,
                           scope, self.config.n_layers, self.config.layer_size,
                           self.min_p, self.max_p)
-    self.sampled_action = np.clip(actions + np.random.normal(0, 1, self.action_dim), self.min_p, self.max_p)
+    self.sampled_action = np.clip(actions + self.actor_noise(), self.min_p, self.max_p)
 
   def add_loss_op(self):
     """
