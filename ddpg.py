@@ -254,7 +254,7 @@ class CriticNetwork(object):
             tf.matmul(out, weights1) + tf.matmul(action, weights2) + bias)
 
         for i in range(self.n_layers - 2):
-            out = tf.layers.dense(out, units=size, activation=tf.nn.relu)
+            out = tf.layers.dense(out, units=self.size, activation=tf.nn.relu)
 
         out = tf.layers.dense(out, units=1)
 
