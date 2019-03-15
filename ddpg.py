@@ -333,8 +333,8 @@ class DPG(object):
         Written by course staff.
         """
         # directory for training outputs
-        if not os.path.exists(config.output_path):
-            os.makedirs(config.output_path)
+        if not os.path.exists(config.output_path2):
+            os.makedirs(config.output_path2)
 
         # store hyperparameters
         self.config = config
@@ -416,7 +416,7 @@ class DPG(object):
 
         # logging
         self.merged = tf.summary.merge_all()
-        self.file_writer = tf.summary.FileWriter(self.config.output_path,self.sess.graph)
+        self.file_writer = tf.summary.FileWriter(self.config.output_path2,self.sess.graph)
 
     def init_averages(self):
         """
@@ -524,11 +524,11 @@ class DPG(object):
                 total_rewards = []
                 ave_max_q = []
 
-            # compute reward statistics for this batch and log
-            avg_reward = np.mean(total_rewards)
-            sigma_reward = np.sqrt(np.var(total_rewards) / len(total_rewards))
-            msg = "Average reward: {:04.2f} +/- {:04.2f}".format(avg_reward, sigma_reward)
-            self.logger.info(msg)
+                # compute reward statistics for this batch and log
+                avg_reward = np.mean(total_rewards)
+                sigma_reward = np.sqrt(np.var(total_rewards) / len(total_rewards))
+                msg = "Average reward: {:04.2f} +/- {:04.2f}".format(avg_reward, sigma_reward)
+                self.logger.info(msg)
 
         self.logger.info("- Training done.")
         export_plot(scores_eval, "Score", config.env_name, self.config.plot_output)

@@ -16,6 +16,7 @@ class ConfigSixBusPOC(object):
         # output config
         baseline_str       = 'baseline' if use_baseline else 'no_baseline'
         self.output_path   = "results/{}-{}/".format(self.env_name, baseline_str)
+        self.output_path2 = "results/{}-ddpg/".format(self.env_name)
         self.model_output  = self.output_path + "model.weights/"
         self.log_path      = self.output_path + "log.txt"
         self.plot_output   = self.output_path + "scores.png"
@@ -102,6 +103,7 @@ class StandardLVNetwork(object):
         # output config
         baseline_str = 'baseline' if use_baseline else 'no_baseline'
         self.output_path = "results/{}-{}/".format(self.env_name, baseline_str)
+        self.output_path2 = "results/{}-ddpg/".format(self.env_name)
         self.model_output = self.output_path + "model.weights/"
         self.log_path = self.output_path + "log.txt"
         self.plot_output = self.output_path + "scores.png"
