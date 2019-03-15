@@ -244,7 +244,7 @@ class DPG(object):
     with tf.variable_scope("policy_network"):
       self.critic_q = tf.squeeze(build_critic(self.observation_placeholder, self.action_placeholder, "policy_network",
                                               2, 400))
-    self.loss = - tf.reduce_mean(self.critiq_q) #  tf.multiply(self.logprob, self.advantage_placeholder))
+    self.loss = - tf.reduce_mean(self.critic_q) #  tf.multiply(self.logprob, self.advantage_placeholder))
 
   def add_optimizer_op(self):
     """
