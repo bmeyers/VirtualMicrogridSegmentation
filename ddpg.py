@@ -78,39 +78,213 @@ class ReplayBuffer(object):
     self.buffer.clear()
     self.count = 0
 
-def build_actor(actor_input, output_size, scope, n_layers, size, min_p, max_p):
-  """
-  Build a feed forward network (multi-layer perceptron, or mlp)
-  with 'n_layers' hidden layers, each of size 'size' units.
-  Use tf.nn.relu nonlinearity between layers.
-  Args:
-          mlp_input: the input to the multi-layer perceptron
-          output_size: the output layer size
-          scope: the scope of the neural network
-          n_layers: the number of hidden layers of the network
-          size: the size of each layer:
-          output_activation: the activation of output layer
-  Returns:
-          The tensor output of the network
+# ===========================
+#   Actor and Critic DNNs
+#   Created working with code published by Patrick Emami on his blog "Deep
+#   Deterministic Policy Gradients in TensorFlow":
+#   https://pemami4911.github.io/blog/2016/08/21/ddpg-rl.html
+# ===========================
 
-  Created working with code published by Patrick Emami on his blog "Deep Deterministic Policy Gradients in TensorFlow":
-  https://pemami4911.github.io/blog/2016/08/21/ddpg-rl.html
+class ActorNetwork(object):
+    """
+    Input to the network is the state, output is the action
+    under a deterministic policy.
 
-  """
+    The output layer activation is a tanh to keep the action
+    between -action_bound and action_bound
+    """
 
-  with tf.variable_scope(scope):
-    out = tf.layers.flatten(actor_input)
-    for i in range(n_layers):
-      out = tf.layers.dense(out, units=size)
-      out = tf.layers.batch_normalization(out)
-      out = tf.nn.relu(out)
-    out = tf.layers.dense(out, units=output_size, activation=tf.nn.tanh)
+    def __init__(self, sess, state_dim, action_dim, learning_rate, tau,
+                 n_layers, size, min_p, max_p, batch_size):
+        self.sess = sess
+        self.s_dim = state_dim
+        self.a_dim = action_dim
+        self.learning_rate = learning_rate
+        self.tau = tau
+        self.n_layers = n_layers
+        self.size = size
+        self.min_p = min_p
+        self.max_p = max_p
+        self.batch_size = batch_size
 
-    centers = (min_p + max_p) / 2.0
-    scales = (max_p - min_p) / 2.0
-    out = tf.multiply(out, scales) + centers
+        # Actor Network
+        self.inputs, self.out, self.scaled_out = self.create_actor_network()
 
-  return out
+        self.network_params = tf.trainable_variables()
+
+        # Target Network
+        self.target_inputs, self.target_out, self.target_scaled_out = self.create_actor_network()
+
+        self.target_network_params = tf.trainable_variables()[
+            len(self.network_params):]
+
+        # Op for periodically updating target network with online network
+        # weights
+        self.update_target_network_params = \
+            [self.target_network_params[i].assign(tf.multiply(self.network_params[i], self.tau) +
+                                                  tf.multiply(self.target_network_params[i], 1. - self.tau))
+                for i in range(len(self.target_network_params))]
+
+        # This gradient will be provided by the critic network
+        self.action_gradient = tf.placeholder(tf.float32, [None, self.a_dim])
+
+        # Combine the gradients here
+        self.unnormalized_actor_gradients = tf.gradients(
+            self.scaled_out, self.network_params, -self.action_gradient)
+        self.actor_gradients = list(map(lambda x: tf.div(x, self.batch_size), self.unnormalized_actor_gradients))
+
+        # Optimization Op
+        self.optimize = tf.train.AdamOptimizer(self.learning_rate).\
+            apply_gradients(zip(self.actor_gradients, self.network_params))
+
+        self.num_trainable_vars = len(
+            self.network_params) + len(self.target_network_params)
+
+    def create_actor_network(self):
+        inputs = tf.placeholder(shape=[None, self.s_dim],
+                                                  dtype=tf.float32,
+                                                  name='states')
+        out = tf.layers.flatten(inputs)
+        for i in range(self.n_layers):
+          out = tf.layers.dense(out, units=self.size)
+          out = tf.layers.batch_normalization(out)
+          out = tf.nn.relu(out)
+        out = tf.layers.dense(out, units=self.a_dim, activation=tf.nn.tanh)
+
+        centers = (self.min_p + self.max_p) / 2.0
+        scales = (self.max_p -self.min_p) / 2.0
+        scaled_out = tf.multiply(out, scales) + centers
+
+        return inputs, out, scaled_out
+
+    def train(self, inputs, a_gradient):
+        self.sess.run(self.optimize, feed_dict={
+            self.inputs: inputs,
+            self.action_gradient: a_gradient
+        })
+
+    def predict(self, inputs):
+        return self.sess.run(self.scaled_out, feed_dict={
+            self.inputs: inputs
+        })
+
+    def predict_target(self, inputs):
+        return self.sess.run(self.target_scaled_out, feed_dict={
+            self.target_inputs: inputs
+        })
+
+    def update_target_network(self):
+        self.sess.run(self.update_target_network_params)
+
+    def get_num_trainable_vars(self):
+        return self.num_trainable_vars
+
+
+class CriticNetwork(object):
+    """
+    Input to the network is the state and action, output is Q(s,a).
+    The action must be obtained from the output of the Actor network.
+
+    """
+
+    def __init__(self, sess, state_dim, action_dim, learning_rate, tau, gamma,
+                 n_layers, size, num_actor_vars):
+        self.sess = sess
+        self.s_dim = state_dim
+        self.a_dim = action_dim
+        self.learning_rate = learning_rate
+        self.tau = tau
+        self.gamma = gamma
+        self.n_layers = n_layers
+        self.size = size
+
+        # Create the critic network
+        self.inputs, self.action, self.out = self.create_critic_network()
+
+        self.network_params = tf.trainable_variables()[num_actor_vars:]
+
+        # Target Network
+        self.target_inputs, self.target_action, self.target_out = self.create_critic_network()
+
+        self.target_network_params = tf.trainable_variables()[(len(self.network_params) + num_actor_vars):]
+
+        # Op for periodically updating target network with online network
+        # weights with regularization
+        self.update_target_network_params = \
+            [self.target_network_params[i].assign(tf.multiply(self.network_params[i], self.tau) \
+            + tf.multiply(self.target_network_params[i], 1. - self.tau))
+                for i in range(len(self.target_network_params))]
+
+        # Network target (y_i)
+        self.predicted_q_value = tf.placeholder(tf.float32, [None, 1])
+
+        # Define loss and optimization Op
+        self.loss = tflearn.mean_square(self.predicted_q_value, self.out)
+        self.optimize = tf.train.AdamOptimizer(
+            self.learning_rate).minimize(self.loss)
+
+        # Get the gradient of the net w.r.t. the action.
+        # For each action in the minibatch (i.e., for each x in xs),
+        # this will sum up the gradients of each critic output in the minibatch
+        # w.r.t. that action. Each output is independent of all
+        # actions except for one.
+        self.action_grads = tf.gradients(self.out, self.action)
+
+    def create_critic_network(self):
+
+        inputs = tf.placeholder(shape=[None, self.s_dim],
+                                                      dtype=tf.float32,
+                                                      name='observation')
+        action = tf.placeholder(shape=[None, self.a_dim],
+                                                 dtype=tf.float32,
+                                                 name='action')
+
+        out = tf.layers.flatten(inputs)
+        out = tf.layers.dense(out, units=self.size, activation=None)
+        out = tf.layers.batch_normalization(out)
+        out = tf.nn.relu(out)
+
+        t1 = tf.layers.dense(out, units=self.size)
+        t2 = tf.layers.dense(action, units=self.size)
+
+        out = tf.nn.relu(
+          tf.matmul(out, t1.W) + tf.matmul(action, t2.W) + t2.b)
+
+        for i in range(self.n_layers - 2):
+          out = tf.layers.dense(out, units=size, activation=tf.nn.relu)
+
+        out = tf.layers.dense(out, units=1)
+
+        return inputs, action, out
+
+    def train(self, inputs, action, predicted_q_value):
+        return self.sess.run([self.out, self.optimize], feed_dict={
+            self.inputs: inputs,
+            self.action: action,
+            self.predicted_q_value: predicted_q_value
+        })
+
+    def predict(self, inputs, action):
+        return self.sess.run(self.out, feed_dict={
+            self.inputs: inputs,
+            self.action: action
+        })
+
+    def predict_target(self, inputs, action):
+        return self.sess.run(self.target_out, feed_dict={
+            self.target_inputs: inputs,
+            self.target_action: action
+        })
+
+    def action_gradients(self, inputs, actions):
+        return self.sess.run(self.action_grads, feed_dict={
+            self.inputs: inputs,
+            self.action: actions
+        })
+
+    def update_target_network(self):
+        self.sess.run(self.update_target_network_params)
+
 
 class OrnsteinUhlenbeckActionNoise(object):
   """
@@ -138,45 +312,6 @@ class OrnsteinUhlenbeckActionNoise(object):
   def __repr__(self):
     return 'OrnsteinUhlenbeckActionNoise(mu={}, sigma={})'.format(self.mu,
                                                             self.sigma)
-
-def build_critic(mlp_input, actions_input, scope, n_layers, size):
-  """
-  Build a feed forward network (multi-layer perceptron, or mlp)
-  with 'n_layers' hidden layers, each of size 'size' units.
-  Use tf.nn.relu nonlinearity between layers.
-  Args:
-          mlp_input: the input to the multi-layer perceptron
-          output_size: the output layer size
-          scope: the scope of the neural network
-          n_layers: the number of hidden layers of the network
-          size: the size of each layer:
-          output_activation: the activation of output layer
-  Returns:
-          The tensor output of the network
-
-  Created working with code published by Patrick Emami on his blog "Deep Deterministic Policy Gradients in TensorFlow":
-  https://pemami4911.github.io/blog/2016/08/21/ddpg-rl.html
-  """
-
-  with tf.variable_scope(scope):
-
-    out = tf.layers.flatten(mlp_input)
-    out = tf.layers.dense(out, units=size, activation=None)
-    out = tf.layers.batch_normalization(out)
-    out = tf.nn.relu(out)
-
-    t1 = tf.layers.dense(out, units=size)
-    t2 = tf.layers.dense(actions_input, units=size)
-
-    out = tf.nn.relu(tf.matmul(out, t1.W) + tf.matmul(actions_input, t2.W) + t2.b)
-
-    for i in range(n_layers-2):
-      out = tf.layers.dense(out, units=size, activation=tf.nn.relu)
-
-    out = tf.layers.dense(out, units=1)
-
-  return out
-
 
 class DPG(object):
   """
