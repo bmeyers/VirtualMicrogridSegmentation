@@ -244,8 +244,14 @@ class CriticNetwork(object):
         t1 = tf.layers.dense(out, units=self.size)
         t2 = tf.layers.dense(action, units=self.size)
 
+        weights1 = tf.get_default_graph().get_tensor_by_name(
+            os.path.split(t1.name)[0] + '/kernel:0')
+        weights2 = tf.get_default_graph().get_tensor_by_name(
+            os.path.split(t1.name)[0] + '/kernel:0')
+        bias = tf.get_default_graph().get_tensor_by_name(
+            os.path.split(t1.name)[0] + '/bias:0')
         out = tf.nn.relu(
-            tf.matmul(out, t1.W) + tf.matmul(action, t2.W) + t2.b)
+            tf.matmul(out, weights1) + tf.matmul(action, weights2) + bias)
 
         for i in range(self.n_layers - 2):
             out = tf.layers.dense(out, units=size, activation=tf.nn.relu)
@@ -549,8 +555,9 @@ class DPG(object):
         self.train()
 
 if __name__ == '__main__':
-    args = parser.parse_args()
-    config = get_config(args.env_name)  #, args.use_baseline)
+    #args = parser.parse_args()
+    #config = get_config(args.env_name)
+    config = get_config('Six_Bus_POC')
     env = NetModel(config=config)
     # train model
     model = DPG(env, config)
