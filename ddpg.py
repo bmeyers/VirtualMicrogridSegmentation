@@ -213,10 +213,10 @@ class DPG(object):
                                              dtype=tf.float32,
                                              name='action')
 
-    # Define a placeholder for advantages
+    # Define a placeholder for critic
     self.critic_placeholder = tf.placeholder(shape=[None],
                                                 dtype=tf.float32,
-                                                name='advantage')
+                                                name='critic')
 
   def build_policy_network_op(self, scope = "policy_network"):
     """
@@ -231,10 +231,7 @@ class DPG(object):
     actions = build_actor(self.observation_placeholder, self.action_dim,
                           scope, self.config.n_layers, self.config.layer_size,
                           self.min_p, self.max_p)
-    self.sampled_action = np.clip(
-      actions + np.random.normal(0, 1, self.action_dim),
-      self.min_p, self.max_p
-    )
+    self.sampled_action = np.clip(actions + np.random.normal(0, 1, self.action_dim), self.min_p, self.max_p)
 
   def add_loss_op(self):
     """
@@ -254,7 +251,7 @@ class DPG(object):
     optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
     self.train_op = optimizer.minimize(self.loss)
 
-  def add_baseline_op(self, scope = "baseline"):
+  def add_critic_op(self):
     """
     Build the baseline network within the scope.
 
@@ -267,17 +264,21 @@ class DPG(object):
         scope: the scope of the baseline network
 
     """
+    with tf.variable_scope("target"): # Is this the right way to do this, or should we just have a placeholder for this
+      # and do all the things with the not target scope elsewhere?
+      self.critic_q_target = tf.squeeze(build_critic(self.observation_placeholder, self.action_placeholder, "target",
+                                                     2, 400))
 
-    self.baseline = tf.squeeze(build_mlp(self.observation_placeholder, 1, scope,
-                                         self.config.n_layers, self.config.layer_size))
+    with tf.variable_scope("policy_network"):
+      self.critic_q = tf.squeeze(build_critic(self.observation_placeholder, self.action_placeholder, "policy_network",
+                                              2, 400))
+    self.returns_placeholder = tf.placeholder(shape=[None], dtype=tf.float32, name="returns")
+    self.critic_y = self.returns_placeholder + self.config.gamma * self.critic_q_target
 
-    self.baseline_target_placeholder = tf.placeholder(shape=[None], dtype=tf.float32, name='baseline')
+    self.critic_loss = tf.losses.mean_squared_error(labels=self.critic_y, predictions=self.critic_q)
 
-    self.baseline_loss = tf.losses.mean_squared_error(labels=self.baseline_target_placeholder,
-                                                      predictions=self.baseline)
-
-    optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
-    self.update_baseline_op = optimizer.minimize(self.baseline_loss)
+    optimizer = tf.train.AdamOptimizer(learning_rate=self.critic_lr)
+    self.update_critic_op = optimizer.minimize(self.critic_loss)
 
   def build(self):
     """
