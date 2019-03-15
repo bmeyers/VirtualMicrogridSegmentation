@@ -209,6 +209,8 @@ class DPG(object):
 
     self.actor_lr = self.config.actor_learning_rate
     self.critic_lr = self.config.critic_learning_rate
+    self.tau = self.config.tau
+    self.batch_size = self.config.minibatch_size
 
     self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
 
@@ -246,7 +248,7 @@ class DPG(object):
                                                 dtype=tf.float32,
                                                 name='critic')
 
-  def build_policy_network_op(self, scope = "policy_network"):
+  def build_actor_network_op(self, scope="policy_network"):
     """
     Build the policy network, construct the tensorflow operation to sample
     actions from the policy network outputs, and compute the log probabilities
@@ -256,31 +258,39 @@ class DPG(object):
     Args:
             scope: the scope of the neural network
     """
+    # Main actor network
     actions = build_actor(self.observation_placeholder, self.action_dim,
                           scope, self.config.n_layers, self.config.layer_size,
                           self.min_p, self.max_p)
     self.sampled_action = np.clip(actions + self.actor_noise(), self.min_p, self.max_p)
+    # Target actor network
+    target_actions = build_actor(self.observation_placeholder, self.action_dim,
+                                 scope + '_target', self.config.n_layers,
+                                 self.config.layer_size,self.min_p, self.max_p)
+    self.target_sampled_action = np.clip(target_actions + self.actor_noise(), self.min_p, self.max_p)
 
-  def add_loss_op(self):
-    """
-    Compute the loss, averaged for a given batch.
-
-    Recall the update for REINFORCE with advantage:
-    θ = θ + α ∇_θ log π_θ(a_t|s_t) A_t
-    """
-
-    with tf.variable_scope("policy_network"):
-      self.critic_q = tf.squeeze(build_critic(self.observation_placeholder, self.action_placeholder, "policy_network",
-                                              2, 400))
-    self.loss = - tf.reduce_mean(self.critic_q) #  tf.multiply(self.logprob, self.advantage_placeholder))
+    self.actor_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope)
+    self.target_actor_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope + '_target')
+    self.update_target_actor_op = \
+      [self.target_actor_vars[i].assign(tf.multiply(self.actor_vars[i], self.tau) +
+                                tf.multiply(self.target_actor_vars[i], 1. - self.tau))
+       for i in range(len(self.target_actor_vars))]
 
   def add_optimizer_op(self):
     """
     Set 'self.train_op' using AdamOptimizer
     """
-
+    self.action_gradient = tf.placeholder(shape=[None, self.action_dim],
+                                          dtype=tf.float32,
+                                          name='action_gradient')
+    self.unnormalized_actor_gradients = tf.gradients(
+      self.sampled_action, self.actor_vars, -self.action_gradient
+    )
+    self.actor_gradients = list(map(lambda x: tf.div(x, self.batch_size),
+                                    self.unnormalized_actor_gradients))
     optimizer = tf.train.AdamOptimizer(learning_rate=self.actor_lr)
-    self.train_op = optimizer.minimize(self.loss)
+    self.train_actor_op = optimizer.apply_gradients(zip(self.actor_gradients,
+                                                  self.actor_vars))
 
 
   def add_critic_op(self):
