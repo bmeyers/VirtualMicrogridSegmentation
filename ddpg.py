@@ -78,7 +78,7 @@ class ReplayBuffer(object):
 
 # ===========================
 #   Actor and Critic DNNs
-#   Created working with code published by Patrick Emami on his blog "Deep
+#   Based on code published by Patrick Emami on his blog "Deep
 #   Deterministic Policy Gradients in TensorFlow":
 #   https://pemami4911.github.io/blog/2016/08/21/ddpg-rl.html
 # ===========================
@@ -88,8 +88,9 @@ class ActorNetwork(object):
     Input to the network is the state, output is the action
     under a deterministic policy.
 
-    The output layer activation is a tanh to keep the action
-    between -action_bound and action_bound
+    The output layer activation is a tanh, which is individually scaled and
+    recentered for each input, to keep each input between p_min and p_max
+    for the given device.
     """
 
     def __init__(self, sess, state_dim, action_dim, learning_rate, tau,
@@ -147,7 +148,10 @@ class ActorNetwork(object):
             out = tf.layers.dense(out, units=self.size)
             out = tf.layers.batch_normalization(out)
             out = tf.nn.relu(out)
-        out = tf.layers.dense(out, units=self.a_dim, activation=tf.nn.tanh)
+        # Final layer weights are init to Uniform[-3e-3, 3e-3]
+        w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003)
+        out = tf.layers.dense(out, units=self.a_dim, activation=tf.nn.tanh,
+                              kernel_initializer=w_init)
 
         centers = (self.min_p + self.max_p) / 2.0
         scales = (self.max_p -self.min_p) / 2.0
@@ -257,7 +261,9 @@ class CriticNetwork(object):
         for i in range(self.n_layers - 2):
             out = tf.layers.dense(out, units=self.size, activation=tf.nn.relu)
 
-        out = tf.layers.dense(out, units=1)
+        # Final layer weights are init to Uniform[-3e-3, 3e-3]
+        w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003)
+        out = tf.layers.dense(out, units=1, kernel_initializer=w_init)
 
         return inputs, action, out
 
@@ -352,7 +358,8 @@ class DPG(object):
         self.tau = self.config.tau
         self.batch_size = self.config.minibatch_size
 
-        self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
+        #self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
+        self.actor_noise = lambda: np.random.normal(0, 0.2, size=self.action_dim)
 
         # action space limits
         min_p = []
@@ -437,7 +444,6 @@ class DPG(object):
             scores_eval: list
         """
         msk_rewards = ~np.isnan(rewards)
-        msk_scores = ~np.isnan(scores_eval)
         msk_q = ~np.isnan(avg_max_q)
         self.avg_reward = np.mean(rewards[msk_rewards])
         self.max_reward = np.max(rewards[msk_rewards])
@@ -482,8 +488,6 @@ class DPG(object):
             for j in range(self.config.max_ep_steps):
                 a = self.actor.predict(s[None, :]) + self.actor_noise()
                 s2, r, done, info = self.env.step(a[0])
-                if r > 0:
-                    print('Non-zero R! {:.2f}'.format(r))
                 replay_buffer.add(np.reshape(s, (self.state_dim)),
                                   np.reshape(a, (self.action_dim)),
                                   r, done,

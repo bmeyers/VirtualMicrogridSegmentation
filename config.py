@@ -41,7 +41,7 @@ class ConfigSixBusPOC(object):
         self.actor_learning_rate    = 1e-3
         self.critic_learning_rate   = 1e-2
         self.buffer_size            = 1e6
-        self.minibatch_size         = 64
+        self.minibatch_size         = 1000
         self.max_episodes           = self.num_batches * self.batch_size
         self.max_ep_steps           = self.max_ep_len
 
