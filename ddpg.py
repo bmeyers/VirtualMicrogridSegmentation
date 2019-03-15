@@ -145,9 +145,9 @@ class ActorNetwork(object):
                                 name='states')
         out = tf.layers.flatten(inputs)
         for i in range(self.n_layers):
-            out = tf.layers.dense(out, units=self.size)
-            out = tf.layers.batch_normalization(out)
-            out = tf.nn.relu(out)
+            out = tf.layers.dense(out, units=self.size, activation=tf.nn.relu)
+            #out = tf.layers.batch_normalization(out)
+            #out = tf.nn.relu(out)
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
         w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003)
         out = tf.layers.dense(out, units=self.a_dim, activation=tf.nn.tanh,
@@ -242,9 +242,9 @@ class CriticNetwork(object):
                                 name='action')
 
         out = tf.layers.flatten(inputs)
-        out = tf.layers.dense(out, units=self.size, activation=None)
-        out = tf.layers.batch_normalization(out)
-        out = tf.nn.relu(out)
+        out = tf.layers.dense(out, units=self.size, activation=tf.nn.relu)
+        #out = tf.layers.batch_normalization(out)
+        #out = tf.nn.relu(out)
 
         t1 = tf.layers.dense(out, units=self.size)
         t2 = tf.layers.dense(action, units=self.size)
@@ -302,7 +302,7 @@ class OrnsteinUhlenbeckActionNoise(object):
     https://github.com/openai/baselines/blob/master/baselines/ddpg/noise.py
     https://math.stackexchange.com/questions/1287634/implementing-ornstein-uhlenbeck-in-matlab
     """
-    def __init__(self, mu, sigma=0.3, theta=.15, dt=1e-2, x0=None):
+    def __init__(self, mu, sigma=0.1, theta=.15, dt=1e-2, x0=None):
         self.theta = theta
         self.mu = mu
         self.sigma = sigma
@@ -358,8 +358,8 @@ class DPG(object):
         self.tau = self.config.tau
         self.batch_size = self.config.minibatch_size
 
-        #self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
-        self.actor_noise = lambda: np.random.normal(0, 0.2, size=self.action_dim)
+        self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
+        #self.actor_noise = lambda: np.random.normal(0, 0.2, size=self.action_dim)
 
         # action space limits
         min_p = []
@@ -443,12 +443,10 @@ class DPG(object):
             rewards: deque
             scores_eval: list
         """
-        msk_rewards = ~np.isnan(rewards)
-        msk_q = ~np.isnan(avg_max_q)
-        self.avg_reward = np.mean(rewards[msk_rewards])
-        self.max_reward = np.max(rewards[msk_rewards])
-        self.std_reward = np.sqrt(np.var(rewards[msk_rewards]) / len(rewards[msk_rewards]))
-        self.avg_max_q = np.mean(avg_max_q[msk_q])
+        self.avg_reward = np.mean(rewards)
+        self.max_reward = np.max(rewards)
+        self.std_reward = np.sqrt(np.var(rewards) / len(rewards))
+        self.avg_max_q = np.mean(avg_max_q)
 
         if len(scores_eval) > 0:
             self.eval_reward = scores_eval[-1]
@@ -530,14 +528,16 @@ class DPG(object):
                 scores_eval.extend(total_rewards)
                 self.update_averages(np.array(total_rewards), np.array(scores_eval), np.array(ave_max_q))
                 self.record_summary(i)
-                total_rewards = []
-                ave_max_q = []
 
                 # compute reward statistics for this batch and log
                 avg_reward = np.mean(total_rewards)
                 sigma_reward = np.sqrt(np.var(total_rewards) / len(total_rewards))
-                msg = "Average reward: {:04.2f} +/- {:04.2f}".format(avg_reward, sigma_reward)
+                avg_q = np.mean(ave_max_q)
+                s1 = "Average reward: {:04.2f} +/- {:04.2f}    Average Max Q: {:.2f}"
+                msg = s1.format(avg_reward, sigma_reward, avg_q)
                 self.logger.info(msg)
+                total_rewards = []
+                ave_max_q = []
 
         self.logger.info("- Training done.")
         export_plot(scores_eval, "Score", config.env_name, self.config.plot_output)

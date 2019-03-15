@@ -23,7 +23,7 @@ class ConfigSixBusPOC(object):
         self.record_path   = self.output_path
         self.record_freq   = 5
         self.summary_freq  = 1
-        self.summary_freq2 = 200
+        self.summary_freq2 = 20
 
         # model and training - general
         self.gamma                  = 0.9 # the discount factor
@@ -38,10 +38,10 @@ class ConfigSixBusPOC(object):
 
         # model and training config - DDPG
         self.tau                    = 0.001
-        self.actor_learning_rate    = 1e-3
+        self.actor_learning_rate    = 1e-4
         self.critic_learning_rate   = 1e-2
         self.buffer_size            = 1e6
-        self.minibatch_size         = 1000
+        self.minibatch_size         = self.max_ep_len * 4
         self.max_episodes           = self.num_batches * self.batch_size
         self.max_ep_steps           = self.max_ep_len
 
@@ -68,8 +68,8 @@ class ConfigSixBusPOC(object):
         # Action space
         self.gen_p_min = -50.0
         self.gen_p_max = 0.0
-        self.storage_p_min = -50.0
-        self.storage_p_max = 50.0
+        self.storage_p_min = -10.0
+        self.storage_p_max = 10.0
 
         # parameters for the policy and baseline models
         self.n_layers               = 1
