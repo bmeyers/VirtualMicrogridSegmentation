@@ -241,15 +241,19 @@ class DPG(object):
     θ = θ + α ∇_θ log π_θ(a_t|s_t) A_t
     """
 
-    self.loss = - tf.reduce_mean(tf.multiply(self.logprob, self.advantage_placeholder))
+    with tf.variable_scope("policy_network"):
+      self.critic_q = tf.squeeze(build_critic(self.observation_placeholder, self.action_placeholder, "policy_network",
+                                              2, 400))
+    self.loss = - tf.reduce_mean(self.critiq_q) #  tf.multiply(self.logprob, self.advantage_placeholder))
 
   def add_optimizer_op(self):
     """
     Set 'self.train_op' using AdamOptimizer
     """
 
-    optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
+    optimizer = tf.train.AdamOptimizer(learning_rate=self.actor_lr)
     self.train_op = optimizer.minimize(self.loss)
+
 
   def add_critic_op(self):
     """
@@ -529,16 +533,18 @@ class DPG(object):
       rewards = np.concatenate([path["reward"] for path in paths])
       # compute Q-val estimates (discounted future returns) for each time step
       returns = self.get_returns(paths)
-      advantages = self.calculate_advantage(returns, observations)
+      # advantages = self.calculate_advantage(returns, observations)
 
       # run training operations
       # if self.config.use_baseline:
       #   self.update_baseline(returns, observations)
       self.update_critic(returns, observations, actions)
+      #### TODO is this feeding it the right actions and observations? Should it not be the next observations for the
+      # critic?
+
       self.sess.run(self.train_op, feed_dict={
                     self.observation_placeholder : observations,
-                    self.action_placeholder : actions,
-                    self.advantage_placeholder : advantages})
+                    self.action_placeholder : actions}) #  ,self.advantage_placeholder : advantages})
 
       # tf stuff
       if (t % self.config.summary_freq == 0):
