@@ -56,8 +56,8 @@ def build_actor(actor_input, output_size, scope, n_layers, size, min_p, max_p):
       out = tf.nn.relu(out)
     out = tf.layers.dense(out, units=output_size, activation=tf.nn.tanh)
 
-    centers = (min_p + max_p)/2.0
-    scales = (max_p - min_p)/2.0
+    centers = (min_p + max_p) / 2.0
+    scales = (max_p - min_p) / 2.0
     out = tf.multiply(out, scales) + centers
 
   return out
@@ -163,7 +163,7 @@ class DPG(object):
                                              name='action')
 
     # Define a placeholder for advantages
-    self.advantage_placeholder = tf.placeholder(shape=[None],
+    self.critic_placeholder = tf.placeholder(shape=[None],
                                                 dtype=tf.float32,
                                                 name='advantage')
 
@@ -177,14 +177,13 @@ class DPG(object):
     Args:
             scope: the scope of the neural network
     """
-    action_means = build_mlp(self.observation_placeholder, self.action_dim,
-                             scope, self.config.n_layers, self.config.layer_size,
-                             output_activation=None)
-    with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
-      log_std = tf.get_variable("log_std", [self.action_dim])
-    self.sampled_action = action_means + tf.multiply(tf.exp(log_std), tf.random_normal(tf.shape(action_means)))
-    mvn = tf.contrib.distributions.MultivariateNormalDiag(loc=action_means, scale_diag=tf.exp(log_std))
-    self.logprob = mvn.log_prob(self.action_placeholder)
+    actions = build_actor(self.observation_placeholder, self.action_dim,
+                          scope, self.config.n_layers, self.config.layer_size,
+                          self.min_p, self.max_p)
+    self.sampled_action = np.clip(
+      actions + np.random.normal(0, 1, self.action_dim),
+      self.min_p, self.max_p
+    )
 
   def add_loss_op(self):
     """
