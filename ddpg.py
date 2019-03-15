@@ -120,12 +120,11 @@ class ActorNetwork(object):
     for the given device.
     """
 
-    def __init__(self, sess, state_dim, action_dim, learning_rate, tau,
+    def __init__(self, sess, state_dim, action_dim, tau,
                  n_layers, size, min_p, max_p, batch_size):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
-        # self.learning_rate = learning_rate
         self.tau = tau
         self.n_layers = n_layers
         self.size = size
@@ -220,16 +219,17 @@ class CriticNetwork(object):
 
     """
 
-    def __init__(self, sess, state_dim, action_dim, learning_rate, tau, gamma,
+    def __init__(self, sess, state_dim, action_dim, tau, gamma,
                  n_layers, size, num_actor_vars):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
-        self.learning_rate = learning_rate
         self.tau = tau
         self.gamma = gamma
         self.n_layers = n_layers
         self.size = size
+
+        self.critic_lr_placeholder = tf.placeholder(shape=None, dtype=tf.float32)
 
         # Create the critic network
         self.inputs, self.action, self.out = self.create_critic_network()
@@ -254,7 +254,7 @@ class CriticNetwork(object):
         # Define loss and optimization Op
         self.loss = tf.losses.mean_squared_error(self.predicted_q_value, self.out)
         self.optimize = tf.train.AdamOptimizer(
-            self.learning_rate).minimize(self.loss)
+            self.critic_lr_placeholder).minimize(self.loss)
 
         # Get the gradient of the net w.r.t. the action.
         # For each action in the minibatch (i.e., for each x in xs),
@@ -298,11 +298,12 @@ class CriticNetwork(object):
 
         return inputs, action, out
 
-    def train(self, inputs, action, predicted_q_value):
+    def train(self, inputs, action, predicted_q_value, learning_rate):
         return self.sess.run([self.out, self.optimize], feed_dict={
             self.inputs: inputs,
             self.action: action,
-            self.predicted_q_value: predicted_q_value
+            self.predicted_q_value: predicted_q_value,
+            self.critic_lr_placeholder: learning_rate
         })
 
     def predict(self, inputs, action):
@@ -383,8 +384,8 @@ class DPG(object):
         self.state_dim = self.env.observation_dim
         self.action_dim = self.env.action_dim
 
-        self.actor_lr = self.config.actor_learning_rate_start
-        self.critic_lr = self.config.critic_learning_rate
+        # self.actor_lr = self.config.actor_learning_rate_start
+        # self.critic_lr = self.config.critic_learning_rate_start
         self.gamma = self.config.gamma
         self.tau = self.config.tau
         self.batch_size = self.config.minibatch_size
@@ -418,12 +419,10 @@ class DPG(object):
         # create tf session
         self.sess = tf.Session()
         # Initialize networks
-        self.actor = ActorNetwork(self.sess, self.state_dim, self.action_dim,
-                                  self.actor_lr, self.tau, self.config.n_layers,
+        self.actor = ActorNetwork(self.sess, self.state_dim, self.action_dim, self.tau, self.config.n_layers,
                                   self.config.layer_size, self.min_p, self.max_p,
                                   self.config.minibatch_size)
-        self.critic = CriticNetwork(self.sess, self.state_dim, self.action_dim,
-                                    self.critic_lr, self.tau, self.gamma,
+        self.critic = CriticNetwork(self.sess, self.state_dim, self.action_dim, self.tau, self.gamma,
                                     self.config.n_layers, self.config.layer_size,
                                     self.actor.get_num_trainable_vars())
         # tensorboard stuff
@@ -445,12 +444,12 @@ class DPG(object):
         self.max_q_placeholder = tf.placeholder(tf.float32, shape=(), name='max_q')
 
         # extra summaries from python -> placeholders
-        tf.summary.scalar("Avg Reward", self.avg_reward_placeholder)
-        tf.summary.scalar("Max Reward", self.max_reward_placeholder)
-        tf.summary.scalar("Std Reward", self.std_reward_placeholder)
-        tf.summary.scalar("Eval Reward", self.eval_reward_placeholder)
+        tf.summary.scalar("Avg_Reward", self.avg_reward_placeholder)
+        tf.summary.scalar("Max_Reward", self.max_reward_placeholder)
+        tf.summary.scalar("Std_Reward", self.std_reward_placeholder)
+        tf.summary.scalar("Eval_Reward", self.eval_reward_placeholder)
         # new DDPG summary
-        tf.summary.scalar("Max Q Value", self.max_q_placeholder)
+        tf.summary.scalar("Max_Q_Value", self.max_q_placeholder)
 
         # logging
         self.merged = tf.summary.merge_all()
@@ -505,6 +504,8 @@ class DPG(object):
 
         actor_lr_schedule = LinearSchedule(self.config.actor_learning_rate_start, self.config.actor_learning_rate_end,
                                            self.config.reasonable_max_episodes*self.config.max_ep_steps)
+        critic_lr_schedule = LinearSchedule(self.config.critic_learning_rate_start, self.config.critic_learning_rate_end,
+                                            self.config.reasonable_max_episodes*self.config.max_ep_steps)
         noise_schedule = LinearSchedule(0.5, 0.01, self.config.reasonable_max_episodes*self.config.max_ep_steps)
 
         self.actor.update_target_network()
@@ -539,9 +540,7 @@ class DPG(object):
                     y_i[~t_batch] = (r_batch +
                                      self.gamma * target_q.squeeze())[~t_batch]
                     # Update critic given targets
-                    predicted_q_val, _ = self.critic.train(
-                        s_batch, a_batch, y_i[:, None]
-                    )
+                    predicted_q_val, _ = self.critic.train(s_batch, a_batch, y_i[:, None], critic_lr_schedule.epsilon)
                     ep_ave_max_q += np.max(predicted_q_val)
                     # Update the actor policy using the sampled gradient
                     a_outs = self.actor.predict(s_batch)
@@ -551,6 +550,7 @@ class DPG(object):
                     self.actor.update_target_network()
                     self.critic.update_target_network()
                     actor_lr_schedule.update(i*self.config.max_ep_steps + j)
+                    critic_lr_schedule.update(i * self.config.max_ep_steps + j)
                     noise_schedule.update(i * self.config.max_ep_steps + j)
                 # Housekeeping
                 s = s2
