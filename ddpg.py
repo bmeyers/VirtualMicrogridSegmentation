@@ -24,9 +24,6 @@ from config import get_config
 parser = argparse.ArgumentParser()
 parser.add_argument('--env_name', required=True, type=str,
                     choices=['Six_Bus_POC', 'rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1'])
-# parser.add_argument('--baseline', dest='use_baseline', action='store_true')
-# parser.add_argument('--no-baseline', dest='use_baseline', action='store_false')
-# parser.set_defaults(use_baseline=True)
 
 
 class ReplayBuffer(object):
@@ -398,14 +395,17 @@ class DPG(object):
         self.avg_reward_placeholder = tf.placeholder(tf.float32, shape=(), name="avg_reward")
         self.max_reward_placeholder = tf.placeholder(tf.float32, shape=(), name="max_reward")
         self.std_reward_placeholder = tf.placeholder(tf.float32, shape=(), name="std_reward")
-
         self.eval_reward_placeholder = tf.placeholder(tf.float32, shape=(), name="eval_reward")
+        # new DDPG placeholders
+        self.max_q_placeholder = tf.placeholder(tf.float32, shape=(), name='max_q')
 
         # extra summaries from python -> placeholders
         tf.summary.scalar("Avg Reward", self.avg_reward_placeholder)
         tf.summary.scalar("Max Reward", self.max_reward_placeholder)
         tf.summary.scalar("Std Reward", self.std_reward_placeholder)
         tf.summary.scalar("Eval Reward", self.eval_reward_placeholder)
+        # new DDPG summary
+        tf.summary.scalar("Max Q Value", self.max_q_placeholder)
 
         # logging
         self.merged = tf.summary.merge_all()
@@ -419,8 +419,9 @@ class DPG(object):
         self.max_reward = 0.
         self.std_reward = 0.
         self.eval_reward = 0.
+        self.avg_max_q = 0.
 
-    def update_averages(self, rewards, scores_eval):
+    def update_averages(self, rewards, scores_eval, avg_max_q):
         """
         Update the averages. Written by course staff.
 
@@ -431,6 +432,7 @@ class DPG(object):
         self.avg_reward = np.mean(rewards)
         self.max_reward = np.max(rewards)
         self.std_reward = np.sqrt(np.var(rewards) / len(rewards))
+        self.avg_max_q = np.mean(avg_max_q)
 
         if len(scores_eval) > 0:
             self.eval_reward = scores_eval[-1]
@@ -445,6 +447,7 @@ class DPG(object):
             self.max_reward_placeholder: self.max_reward,
             self.std_reward_placeholder: self.std_reward,
             self.eval_reward_placeholder: self.eval_reward,
+            self.max_q_placeholder: self.avg_max_q
         }
         summary = self.sess.run(self.merged, feed_dict=fd)
         # tensorboard stuff
@@ -459,6 +462,7 @@ class DPG(object):
         replay_buffer = ReplayBuffer(self.config.buffer_size)
         total_rewards = []
         scores_eval = []
+        ave_max_q = []
 
         for i in range(self.config.max_episodes):
             s = self.env.reset()
@@ -500,14 +504,17 @@ class DPG(object):
                 ep_reward += r
                 if done:
                     total_rewards.append(ep_reward)
+                    ep_ave_max_q /= j
+                    ave_max_q.append(ep_ave_max_q)
                     break
 
             # tf stuff
             if (i % self.config.summary_freq_2 == 0):
                 scores_eval.extend(total_rewards)
-                self.update_averages(total_rewards, scores_eval)
-                self.record_summary(t)
+                self.update_averages(total_rewards, scores_eval, ave_max_q)
+                self.record_summary(i)
                 total_rewards = []
+                ave_max_q = []
 
             # compute reward statistics for this batch and log
             avg_reward = np.mean(total_rewards)
