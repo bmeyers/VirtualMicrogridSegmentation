@@ -390,7 +390,7 @@ class DPG(object):
         self.batch_size = self.config.minibatch_size
 
         # self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
-        self.actor_noise = lambda: np.random.normal(0, 0.5, size=self.action_dim) # changed from 0.2
+        self.actor_noise = lambda noise_level: np.random.normal(0, noise_level, size=self.action_dim) # changed from 0.2
 
         # action space limits
         min_p = []
@@ -505,6 +505,7 @@ class DPG(object):
 
         actor_lr_schedule = LinearSchedule(self.config.actor_learning_rate_start, self.config.actor_learning_rate_end,
                                            self.config.actor_learning_rate_nsteps)
+        noise_schedule = LinearSchedule(0.5, 0.01, self.config.max_episodes*self.config.max_ep_steps)
 
         self.actor.update_target_network()
         self.critic.update_target_network()
@@ -519,7 +520,7 @@ class DPG(object):
             ep_ave_max_q = 0
 
             for j in range(self.config.max_ep_steps):
-                a = self.actor.predict(s[None, :]) + self.actor_noise()
+                a = self.actor.predict(s[None, :]) + self.actor_noise(noise_schedule.epsilon)
                 s2, r, done, info = self.env.step(a[0])
                 replay_buffer.add(np.reshape(s, (self.state_dim)),
                                   np.reshape(a, (self.action_dim)),
@@ -550,6 +551,7 @@ class DPG(object):
                     self.actor.update_target_network()
                     self.critic.update_target_network()
                     actor_lr_schedule.update(i*self.config.max_ep_steps + j)
+                    noise_schedule.update(i * self.config.max_ep_steps + j)
                 # Housekeeping
                 s = s2
                 ep_reward += r
