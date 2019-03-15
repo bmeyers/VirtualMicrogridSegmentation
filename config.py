@@ -23,7 +23,7 @@ class ConfigSixBusPOC(object):
         self.record_path   = self.output_path
         self.record_freq   = 5
         self.summary_freq  = 1
-        self.summary_freq2 = 1000
+        self.summary_freq2 = 200
 
         # model and training - general
         self.gamma                  = 0.9 # the discount factor

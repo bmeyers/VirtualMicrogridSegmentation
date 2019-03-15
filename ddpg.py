@@ -436,10 +436,13 @@ class DPG(object):
             rewards: deque
             scores_eval: list
         """
-        self.avg_reward = np.mean(rewards)
-        self.max_reward = np.max(rewards)
-        self.std_reward = np.sqrt(np.var(rewards) / len(rewards))
-        self.avg_max_q = np.mean(avg_max_q)
+        msk_rewards = ~np.isnan(rewards)
+        msk_scores = ~np.isnan(scores_eval)
+        msk_q = ~np.isnan(avg_max_q)
+        self.avg_reward = np.mean(rewards[msk_rewards])
+        self.max_reward = np.max(rewards[msk_rewards])
+        self.std_reward = np.sqrt(np.var(rewards[msk_rewards]) / len(rewards[msk_rewards]))
+        self.avg_max_q = np.mean(avg_max_q[msk_q])
 
         if len(scores_eval) > 0:
             self.eval_reward = scores_eval[-1]
@@ -462,7 +465,7 @@ class DPG(object):
 
     def train(self):
         """
-        Performs training. Written by course staff.
+        Performs training.
         """
         self.actor.update_target_network()
         self.critic.update_target_network()
@@ -479,6 +482,8 @@ class DPG(object):
             for j in range(self.config.max_ep_steps):
                 a = self.actor.predict(s[None, :]) + self.actor_noise()
                 s2, r, done, info = self.env.step(a[0])
+                if r > 0:
+                    print('Non-zero R! {:.2f}'.format(r))
                 replay_buffer.add(np.reshape(s, (self.state_dim)),
                                   np.reshape(a, (self.action_dim)),
                                   r, done,
@@ -519,7 +524,7 @@ class DPG(object):
             # tf stuff
             if (i % self.config.summary_freq2 == 0):
                 scores_eval.extend(total_rewards)
-                self.update_averages(total_rewards, scores_eval, ave_max_q)
+                self.update_averages(np.array(total_rewards), np.array(scores_eval), np.array(ave_max_q))
                 self.record_summary(i)
                 total_rewards = []
                 ave_max_q = []
