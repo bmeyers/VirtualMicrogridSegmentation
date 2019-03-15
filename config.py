@@ -14,14 +14,15 @@ class ConfigSixBusPOC(object):
         self.env_name = 'Six_Bus_POC'
 
         # output config
-        baseline_str      = 'baseline' if use_baseline else 'no_baseline'
-        self.output_path  = "results/{}-{}/".format(self.env_name, baseline_str)
-        self.model_output = self.output_path + "model.weights/"
-        self.log_path     = self.output_path + "log.txt"
-        self.plot_output  = self.output_path + "scores.png"
-        self.record_path  = self.output_path
-        self.record_freq  = 5
-        self.summary_freq = 1
+        baseline_str       = 'baseline' if use_baseline else 'no_baseline'
+        self.output_path   = "results/{}-{}/".format(self.env_name, baseline_str)
+        self.model_output  = self.output_path + "model.weights/"
+        self.log_path      = self.output_path + "log.txt"
+        self.plot_output   = self.output_path + "scores.png"
+        self.record_path   = self.output_path
+        self.record_freq   = 5
+        self.summary_freq  = 1
+        self.summary_freq2 = 1000
 
         # model and training - general
         self.gamma                  = 0.9 # the discount factor
@@ -40,8 +41,8 @@ class ConfigSixBusPOC(object):
         self.critic_learning_rate   = 1e-2
         self.buffer_size            = 1e6
         self.minibatch_size         = 64
-        self.max_episodes           = 500
-        self.max_ep_steps           = 60
+        self.max_episodes           = 500 * 1000
+        self.max_ep_steps           = self.max_ep_len
 
         # environment generation
         self.tstep = 1. / 60
@@ -107,6 +108,7 @@ class StandardLVNetwork(object):
         self.record_path = self.output_path
         self.record_freq = 5
         self.summary_freq = 1
+        self.summary_freq2 = 1000
 
         # model and training - general
         self.gamma                  = 0.9  # the discount factor
@@ -126,7 +128,7 @@ class StandardLVNetwork(object):
         self.buffer_size            = 1e6
         self.minibatch_size         = 64
         self.max_episodes           = 500
-        self.max_ep_steps           = 60
+        self.max_ep_steps           = self.max_ep_len
 
         self.remove_q = True
         self.clear_loads_sgen = False

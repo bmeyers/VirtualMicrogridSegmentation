@@ -457,6 +457,8 @@ class DPG(object):
         self.actor.update_target_network()
         self.critic.update_target_network()
         replay_buffer = ReplayBuffer(self.config.buffer_size)
+        total_rewards = []
+        scores_eval = []
 
         for i in range(self.config.max_episodes):
             s = self.env.reset()
@@ -497,12 +499,15 @@ class DPG(object):
                 s = s2
                 ep_reward += r
                 if done:
-                    pass
+                    total_rewards.append(ep_reward)
+                    break
 
             # tf stuff
-            if (i % self.config.summary_freq == 0):
+            if (i % self.config.summary_freq_2 == 0):
+                scores_eval.extend(total_rewards)
                 self.update_averages(total_rewards, scores_eval)
                 self.record_summary(t)
+                total_rewards = []
 
             # compute reward statistics for this batch and log
             avg_reward = np.mean(total_rewards)
