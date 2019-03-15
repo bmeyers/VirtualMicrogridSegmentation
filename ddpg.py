@@ -24,9 +24,9 @@ from config import get_config
 parser = argparse.ArgumentParser()
 parser.add_argument('--env_name', required=True, type=str,
                     choices=['Six_Bus_POC', 'rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1'])
-parser.add_argument('--baseline', dest='use_baseline', action='store_true')
-parser.add_argument('--no-baseline', dest='use_baseline', action='store_false')
-parser.set_defaults(use_baseline=True)
+# parser.add_argument('--baseline', dest='use_baseline', action='store_true')
+# parser.add_argument('--no-baseline', dest='use_baseline', action='store_false')
+# parser.set_defaults(use_baseline=True)
 
 
 class ReplayBuffer(object):
@@ -297,9 +297,12 @@ class DPG(object):
     # add optimizer for the main networks
     self.add_optimizer_op()
 
+    # add critic
+    self.add_critic_op()
+
     # add baseline
-    if self.config.use_baseline:
-      self.add_baseline_op()
+    # if self.config.use_baseline:
+    #   self.add_baseline_op()
 
   def initialize(self):
     """
@@ -463,41 +466,47 @@ class DPG(object):
 
     return returns
 
-  def calculate_advantage(self, returns, observations):
-    """
-    Calculate the advantage
+  # def calculate_advantage(self, returns, observations):
+  #   """
+  #   Calculate the advantage
+  #
+  #   Args:
+  #           returns: all discounted future returns for each step
+  #           observations: observations
+  #   Returns:
+  #           adv: Advantage
+  #
+  #   Calculate the advantages, using baseline adjustment if necessary,
+  #   and normalizing the advantages if necessary.
+  #   If neither of these options are True, just return returns.
+  #   """
+  #   adv = returns
+  #
+  #   if self.config.use_baseline:
+  #     adv = returns - self.sess.run(self.baseline, feed_dict={self.observation_placeholder: observations,
+  #                                             self.baseline_target_placeholder: returns})
+  #
+  #   if self.config.normalize_advantage:
+  #     adv = (adv - np.mean(adv))/np.std(adv)
+  #
+  #   return adv
 
-    Args:
-            returns: all discounted future returns for each step
-            observations: observations
-    Returns:
-            adv: Advantage
+  # def update_baseline(self, returns, observations):
+  #   """
+  #   Update the baseline from given returns and observation.
+  #
+  #   Args:
+  #           returns: Returns from get_returns
+  #           observations: observations
+  #   """
+  #   self.sess.run(self.update_baseline_op, feed_dict={self.observation_placeholder: observations,
+  #                                                     self.baseline_target_placeholder: returns})
 
-    Calculate the advantages, using baseline adjustment if necessary,
-    and normalizing the advantages if necessary.
-    If neither of these options are True, just return returns.
-    """
-    adv = returns
+  def update_critic(self, returns, observations, actions):
 
-    if self.config.use_baseline:
-      adv = returns - self.sess.run(self.baseline, feed_dict={self.observation_placeholder: observations,
-                                              self.baseline_target_placeholder: returns})
-
-    if self.config.normalize_advantage:
-      adv = (adv - np.mean(adv))/np.std(adv)
-
-    return adv
-
-  def update_baseline(self, returns, observations):
-    """
-    Update the baseline from given returns and observation.
-
-    Args:
-            returns: Returns from get_returns
-            observations: observations
-    """
-    self.sess.run(self.update_baseline_op, feed_dict={self.observation_placeholder: observations,
-                                                      self.baseline_target_placeholder: returns})
+    self.sess.run(self.update_critic_op, feed_dict={self.observation_placeholder: observations,
+                                                    self.returns_placeholder: returns,
+                                                    self.action_placeholder: actions})
 
   def train(self):
     """
@@ -523,8 +532,9 @@ class DPG(object):
       advantages = self.calculate_advantage(returns, observations)
 
       # run training operations
-      if self.config.use_baseline:
-        self.update_baseline(returns, observations)
+      # if self.config.use_baseline:
+      #   self.update_baseline(returns, observations)
+      self.update_critic(returns, observations, actions)
       self.sess.run(self.train_op, feed_dict={
                     self.observation_placeholder : observations,
                     self.action_placeholder : actions,
@@ -569,7 +579,7 @@ class DPG(object):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    config = get_config(args.env_name, args.use_baseline)
+    config = get_config(args.env_name)  #, args.use_baseline)
     env = NetModel(config=config)
     # train model
     model = DPG(env, config)
