@@ -15,6 +15,7 @@ import scipy.signal
 import os
 import time
 import inspect
+import matplotlib.pyplot as plt
 
 sys.path.append('..')
 from virtual_microgrids.powerflow import NetModel
@@ -291,7 +292,7 @@ class DDPG(object):
                 # plt.xlabel('Episode steps', fontname='Courier')
                 # plt.ylabel('SOC Percent', fontname='Courier')
                 # plt.title('Average reward: '+str(avg_reward)+' +/- '+str(sigma_reward), loc='center', fontname='Courier')
-                plt.savefig(self.config.output_path2 + 'soc_plot.png', bbox_inches='tight');
+                plt.savefig(self.config.output_path + 'soc_plot.png', bbox_inches='tight');
                 plt.close()
 
                 soc_track_slope = soc_track[2:-2, :] - soc_track[1:-3, :]
