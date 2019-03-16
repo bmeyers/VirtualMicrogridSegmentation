@@ -390,13 +390,8 @@ class DPG(object):
         self.tau = self.config.tau
         self.batch_size = self.config.minibatch_size
 
-<<<<<<< HEAD
-        #self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
-        self.actor_noise = lambda: np.random.normal(0, 0.2, size=self.action_dim)
-=======
         # self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
         self.actor_noise = lambda noise_level: np.random.normal(0, noise_level, size=self.action_dim) # changed from 0.2
->>>>>>> 2883e1c24ba209fc2598e07cb91cef9d791ef68c
 
         # action space limits
         min_p = []
