@@ -229,7 +229,7 @@ class DDPG(object):
                     self.critic.update_target_network()
                     actor_lr_schedule.update(i*self.config.max_ep_steps + j)
                     critic_lr_schedule.update(i * self.config.max_ep_steps + j)
-                    noise_schedule.update(i * self.config.max_ep_steps + j)
+                noise_schedule.update(i * self.config.max_ep_steps + j)
                 # Housekeeping
                 if r > best_r:
                     best_r = r
