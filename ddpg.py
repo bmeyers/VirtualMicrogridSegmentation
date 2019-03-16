@@ -519,6 +519,7 @@ class DPG(object):
             s = self.env.reset()
             ep_reward = 0
             ep_ave_max_q = 0
+            best_ep_reward = 0
 
             # Initialize in case it doesn't ever do better
             best_r = 0.0
@@ -566,6 +567,8 @@ class DPG(object):
                 s = s2
                 ep_reward += r
                 if done:
+                    if ep_reward > best_ep_reward:
+                        best_ep_reward = ep_reward
                     total_rewards.append(ep_reward)
                     ep_ave_max_q /= j
                     ave_max_q.append(ep_ave_max_q)
@@ -590,8 +593,12 @@ class DPG(object):
                 self.logger.info(msg2)
                 self.logger.info(msg3)
 
+                msg4 = "The best episode reward was {}".format(best_ep_reward)
+                self.logger.info(msg4)
+
                 total_rewards = []
                 ave_max_q = []
+                best_ep_reward = 0
 
         self.logger.info("- Training done.")
         export_plot(scores_eval, "Score", config.env_name, self.config.plot_output)
