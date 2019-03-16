@@ -520,6 +520,9 @@ class DPG(object):
             ep_reward = 0
             ep_ave_max_q = 0
 
+            best_r = 0.0
+            
+
             for j in range(self.config.max_ep_steps):
                 a = self.actor.predict(s[None, :]) + self.actor_noise(noise_schedule.epsilon)
                 s2, r, done, info = self.env.step(a[0])
@@ -553,6 +556,11 @@ class DPG(object):
                     critic_lr_schedule.update(i * self.config.max_ep_steps + j)
                     noise_schedule.update(i * self.config.max_ep_steps + j)
                 # Housekeeping
+                if r > best_r:
+                    best_s2 = s2
+                    best_a = a
+                    best_r = r
+
                 s = s2
                 ep_reward += r
                 if done:
@@ -574,6 +582,13 @@ class DPG(object):
                 s1 = "Average reward: {:04.2f} +/- {:04.2f}    Average Max Q: {:.2f}"
                 msg = s1.format(avg_reward, sigma_reward, avg_q)
                 self.logger.info(msg)
+                msg2 = "The max episode reward achieved as: "+str(best_r)
+                msg3 = "There the actions were "+str(best_a)
+                msg4 = "There the state was"+str(best_s2)
+                # msg2 = s2.format(str(best_r), str(best_a), str(best_s2))
+                self.logger.info(msg2)
+                self.logger.info(msg3)
+                self.logger.info(msg4)
                 total_rewards = []
                 ave_max_q = []
 
