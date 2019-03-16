@@ -20,7 +20,7 @@ import random
 
 from powerflow import NetModel
 from utils.general import get_logger, Progbar, export_plot
-from config import get_config
+from configs import get_config
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--env_name', required=True, type=str,
