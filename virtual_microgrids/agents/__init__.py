@@ -1,2 +1,2 @@
-from agents.actor_network import ActorNetwork
-from agents.critic_network import CriticNetwork
+from virtual_microgrids.agents.actor_network import ActorNetwork
+from virtual_microgrids.agents.critic_network import CriticNetwork

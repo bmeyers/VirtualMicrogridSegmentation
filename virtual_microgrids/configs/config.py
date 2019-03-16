@@ -1,5 +1,5 @@
-from configs.six_bus_poc import ConfigSixBusPOC
-from configs.standard_lv_network import StandardLVNetwork
+from virtual_microgrids.configs.six_bus_poc import ConfigSixBusPOC
+from virtual_microgrids.configs.standard_lv_network import StandardLVNetwork
 
 
 def get_config(env_name, baseline=True):

@@ -17,18 +17,18 @@ import time
 import inspect
 
 sys.path.append('..')
-from powerflow import NetModel
-from utils.general import get_logger, Progbar, export_plot
-from configs import get_config
-from utils import ReplayBuffer, LinearSchedule, OrnsteinUhlenbeckActionNoise
-from agents import ActorNetwork, CriticNetwork
+from virtual_microgrids.powerflow import NetModel
+from virtual_microgrids.general import get_logger, Progbar, export_plot
+from virtual_microgrids.configs import get_config
+from virtual_microgrids.utils import ReplayBuffer, LinearSchedule, OrnsteinUhlenbeckActionNoise
+from virtual_microgrids.agents import ActorNetwork, CriticNetwork
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--env_name', required=True, type=str,
                     choices=['Six_Bus_POC', 'rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1'])
 
 
-class DPG(object):
+class DDPG(object):
     """
     Abstract Class for implementing a Policy Gradient Based Algorithm
     """

@@ -1,2 +1,1 @@
-from powerflow.pp_network import NetModel
-from powerflow.network_generation import get_net
+from virtual_microgrids.powerflow.pp_network import NetModel
