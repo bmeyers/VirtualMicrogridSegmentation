@@ -292,14 +292,8 @@ class DDPG(object):
                 # plt.xlabel('Episode steps', fontname='Courier')
                 # plt.ylabel('SOC Percent', fontname='Courier')
                 # plt.title('Average reward: '+str(avg_reward)+' +/- '+str(sigma_reward), loc='center', fontname='Courier')
-                plt.savefig(self.config.output_path + 'soc_plot.png', bbox_inches='tight');
+                plt.savefig(self.config.output_path + 'soc_plot.png')  # , bbox_inches='tight')
                 plt.close()
-
-                soc_track_slope = soc_track[2:-2, :] - soc_track[1:-3, :]
-                soc_track_slope_means = np.mean(soc_track_slope, axis=0)
-                soc_track_slope_stds = np.std(soc_track_slope, axis=0)
-                print('The mean of the soc slope: ', soc_track_slope_means)
-                print('The std of the soc slope: ', soc_track_slope_stds)
 
                 total_rewards = []
                 ave_max_q = []
