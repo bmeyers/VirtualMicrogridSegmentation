@@ -194,9 +194,13 @@ class DDPG(object):
             ep_ave_max_q = 0
             best_ep_reward = 0
 
-            # Initialize in case it doesn't ever do better
             best_r = 0.0
             best_reward_logical = None
+
+            soc_track = np.zeros((self.config.max_ep_steps, self.env.net.storage.shape[0]))
+            achieved_1 = np.zeros((self.config.max_ep_steps, 1))
+            achieved_2 = np.zeros((self.config.max_ep_steps, 1))
+            achieved_3 = np.zeros((self.config.max_ep_steps, 1))
 
             for j in range(self.config.max_ep_steps):
                 a = self.actor.predict(s[None, :]) + self.actor_noise(noise_schedule.epsilon)
@@ -237,6 +241,14 @@ class DDPG(object):
                     c2 = np.abs(self.env.net.res_line.p_from_kw - self.env.net.res_line.pl_kw) < self.config.reward_epsilon
                     best_reward_logical = np.logical_or(c1.values, c2.values)
 
+                soc_track[j, :] = self.env.net.storage.soc_percent
+                if r == 1:
+                    achieved_1[j] = 1.0
+                elif r == 2:
+                    achieved_2[j] = 1.0
+                elif r == 3:
+                    achieved_3[j] = 1.0
+
                 s = s2
                 ep_reward += r
                 if done:
@@ -268,6 +280,25 @@ class DDPG(object):
 
                 msg4 = "The best episode reward was {}".format(best_ep_reward)
                 self.logger.info(msg4)
+
+                plt.figure()
+                plt.plot(np.arange(0, self.config.max_ep_steps), achieved_1, '*')
+                plt.plot(np.arange(0, self.config.max_ep_steps), achieved_2, '*')
+                plt.plot(np.arange(0, self.config.max_ep_steps), achieved_3, '*')
+                for k_step in range(self.env.net.storage.shape[0]):
+                    plt.plot(np.arange(0, self.config.max_ep_steps), soc_track[:, k_step], '.')
+                plt.legend(labels=['Achieved r = 1', 'Achieved r = 2', 'Achieved r = 3'])
+                # plt.xlabel('Episode steps', fontname='Courier')
+                # plt.ylabel('SOC Percent', fontname='Courier')
+                # plt.title('Average reward: '+str(avg_reward)+' +/- '+str(sigma_reward), loc='center', fontname='Courier')
+                plt.savefig(self.config.output_path2 + 'soc_plot.png', bbox_inches='tight');
+                plt.close()
+
+                soc_track_slope = soc_track[2:-2, :] - soc_track[1:-3, :]
+                soc_track_slope_means = np.mean(soc_track_slope, axis=0)
+                soc_track_slope_stds = np.std(soc_track_slope, axis=0)
+                print('The mean of the soc slope: ', soc_track_slope_means)
+                print('The std of the soc slope: ', soc_track_slope_stds)
 
                 total_rewards = []
                 ave_max_q = []
