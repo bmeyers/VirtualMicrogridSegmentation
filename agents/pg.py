@@ -13,7 +13,7 @@ import os
 import time
 import inspect
 
-from pp_network import NetModel
+from powerflow import NetModel
 from utils.general import get_logger, Progbar, export_plot
 from config import get_config
 
