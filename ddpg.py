@@ -76,6 +76,33 @@ class ReplayBuffer(object):
         self.buffer.clear()
         self.count = 0
 
+
+class LinearSchedule(object):
+    def __init__(self, eps_begin, eps_end, nsteps):
+        """
+        Args:
+            eps_begin: initial exploration
+            eps_end: end exploration
+            nsteps: number of steps between the two values of eps
+        """
+        self.epsilon = eps_begin
+        self.eps_begin = eps_begin
+        self.eps_end = eps_end
+        self.nsteps = nsteps
+
+    def update(self, t):
+        """
+        Updates epsilon
+
+        Args:
+            t: int
+                frame number
+        """
+        if t <= self.nsteps:
+            self.epsilon = self.eps_begin + (self.eps_end - self.eps_begin) * t / self.nsteps
+        else:
+            self.epsilon = self.eps_end
+
 # ===========================
 #   Actor and Critic DNNs
 #   Based on code published by Patrick Emami on his blog "Deep
@@ -93,18 +120,19 @@ class ActorNetwork(object):
     for the given device.
     """
 
-    def __init__(self, sess, state_dim, action_dim, learning_rate, tau,
+    def __init__(self, sess, state_dim, action_dim, tau,
                  n_layers, size, min_p, max_p, batch_size):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
-        self.learning_rate = learning_rate
         self.tau = tau
         self.n_layers = n_layers
         self.size = size
         self.min_p = min_p
         self.max_p = max_p
         self.batch_size = batch_size
+
+        self.actor_lr_placeholder = tf.placeholder(shape=None, dtype=tf.float32)
 
         # Actor Network
         self.inputs, self.out, self.scaled_out = self.create_actor_network()
@@ -133,13 +161,14 @@ class ActorNetwork(object):
         self.actor_gradients = list(map(lambda x: tf.div(x, self.batch_size), self.unnormalized_actor_gradients))
 
         # Optimization Op
-        self.optimize = tf.train.AdamOptimizer(self.learning_rate). \
+        self.optimize = tf.train.AdamOptimizer(self.actor_lr_placeholder). \
             apply_gradients(zip(self.actor_gradients, self.network_params))
 
         self.num_trainable_vars = len(
             self.network_params) + len(self.target_network_params)
 
     def create_actor_network(self):
+
         inputs = tf.placeholder(shape=[None, self.s_dim],
                                 dtype=tf.float32,
                                 name='states')
@@ -159,10 +188,11 @@ class ActorNetwork(object):
 
         return inputs, out, scaled_out
 
-    def train(self, inputs, a_gradient):
+    def train(self, inputs, a_gradient, learning_rate):
         self.sess.run(self.optimize, feed_dict={
             self.inputs: inputs,
-            self.action_gradient: a_gradient
+            self.action_gradient: a_gradient,
+            self.actor_lr_placeholder: learning_rate
         })
 
     def predict(self, inputs):
@@ -189,16 +219,17 @@ class CriticNetwork(object):
 
     """
 
-    def __init__(self, sess, state_dim, action_dim, learning_rate, tau, gamma,
+    def __init__(self, sess, state_dim, action_dim, tau, gamma,
                  n_layers, size, num_actor_vars):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
-        self.learning_rate = learning_rate
         self.tau = tau
         self.gamma = gamma
         self.n_layers = n_layers
         self.size = size
+
+        self.critic_lr_placeholder = tf.placeholder(shape=None, dtype=tf.float32)
 
         # Create the critic network
         self.inputs, self.action, self.out = self.create_critic_network()
@@ -223,7 +254,7 @@ class CriticNetwork(object):
         # Define loss and optimization Op
         self.loss = tf.losses.mean_squared_error(self.predicted_q_value, self.out)
         self.optimize = tf.train.AdamOptimizer(
-            self.learning_rate).minimize(self.loss)
+            self.critic_lr_placeholder).minimize(self.loss)
 
         # Get the gradient of the net w.r.t. the action.
         # For each action in the minibatch (i.e., for each x in xs),
@@ -262,16 +293,17 @@ class CriticNetwork(object):
             out = tf.layers.dense(out, units=self.size, activation=tf.nn.relu)
 
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
-        w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003)
+        w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003) # Changed from 0.003 values
         out = tf.layers.dense(out, units=1, kernel_initializer=w_init)
 
         return inputs, action, out
 
-    def train(self, inputs, action, predicted_q_value):
+    def train(self, inputs, action, predicted_q_value, learning_rate):
         return self.sess.run([self.out, self.optimize], feed_dict={
             self.inputs: inputs,
             self.action: action,
-            self.predicted_q_value: predicted_q_value
+            self.predicted_q_value: predicted_q_value,
+            self.critic_lr_placeholder: learning_rate
         })
 
     def predict(self, inputs, action):
@@ -352,14 +384,19 @@ class DPG(object):
         self.state_dim = self.env.observation_dim
         self.action_dim = self.env.action_dim
 
-        self.actor_lr = self.config.actor_learning_rate
-        self.critic_lr = self.config.critic_learning_rate
+        # self.actor_lr = self.config.actor_learning_rate_start
+        # self.critic_lr = self.config.critic_learning_rate_start
         self.gamma = self.config.gamma
         self.tau = self.config.tau
         self.batch_size = self.config.minibatch_size
 
+<<<<<<< HEAD
         #self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
         self.actor_noise = lambda: np.random.normal(0, 0.2, size=self.action_dim)
+=======
+        # self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
+        self.actor_noise = lambda noise_level: np.random.normal(0, noise_level, size=self.action_dim) # changed from 0.2
+>>>>>>> 2883e1c24ba209fc2598e07cb91cef9d791ef68c
 
         # action space limits
         min_p = []
@@ -387,12 +424,10 @@ class DPG(object):
         # create tf session
         self.sess = tf.Session()
         # Initialize networks
-        self.actor = ActorNetwork(self.sess, self.state_dim, self.action_dim,
-                                  self.actor_lr, self.tau, self.config.n_layers,
+        self.actor = ActorNetwork(self.sess, self.state_dim, self.action_dim, self.tau, self.config.n_layers,
                                   self.config.layer_size, self.min_p, self.max_p,
                                   self.config.minibatch_size)
-        self.critic = CriticNetwork(self.sess, self.state_dim, self.action_dim,
-                                    self.critic_lr, self.tau, self.gamma,
+        self.critic = CriticNetwork(self.sess, self.state_dim, self.action_dim, self.tau, self.gamma,
                                     self.config.n_layers, self.config.layer_size,
                                     self.actor.get_num_trainable_vars())
         # tensorboard stuff
@@ -414,12 +449,12 @@ class DPG(object):
         self.max_q_placeholder = tf.placeholder(tf.float32, shape=(), name='max_q')
 
         # extra summaries from python -> placeholders
-        tf.summary.scalar("Avg Reward", self.avg_reward_placeholder)
-        tf.summary.scalar("Max Reward", self.max_reward_placeholder)
-        tf.summary.scalar("Std Reward", self.std_reward_placeholder)
-        tf.summary.scalar("Eval Reward", self.eval_reward_placeholder)
+        tf.summary.scalar("Avg_Reward", self.avg_reward_placeholder)
+        tf.summary.scalar("Max_Reward", self.max_reward_placeholder)
+        tf.summary.scalar("Std_Reward", self.std_reward_placeholder)
+        tf.summary.scalar("Eval_Reward", self.eval_reward_placeholder)
         # new DDPG summary
-        tf.summary.scalar("Max Q Value", self.max_q_placeholder)
+        tf.summary.scalar("Max_Q_Value", self.max_q_placeholder)
 
         # logging
         self.merged = tf.summary.merge_all()
@@ -471,6 +506,13 @@ class DPG(object):
         """
         Performs training.
         """
+
+        actor_lr_schedule = LinearSchedule(self.config.actor_learning_rate_start, self.config.actor_learning_rate_end,
+                                           self.config.reasonable_max_episodes*self.config.max_ep_steps)
+        critic_lr_schedule = LinearSchedule(self.config.critic_learning_rate_start, self.config.critic_learning_rate_end,
+                                            self.config.reasonable_max_episodes*self.config.max_ep_steps)
+        noise_schedule = LinearSchedule(0.5, 0.01, self.config.reasonable_max_episodes*self.config.max_ep_steps)
+
         self.actor.update_target_network()
         self.critic.update_target_network()
         replay_buffer = ReplayBuffer(self.config.buffer_size)
@@ -483,8 +525,17 @@ class DPG(object):
             ep_reward = 0
             ep_ave_max_q = 0
 
+            # Initialize in case it doesn't ever do better
+            best_r = 0.0
+            best_a = None
+            best_line_flow_from = None
+            best_line_flow_to = None
+            best_line_losses = None
+            best_s2 = None
+            best_reward_logical = None
+
             for j in range(self.config.max_ep_steps):
-                a = self.actor.predict(s[None, :]) + self.actor_noise()
+                a = self.actor.predict(s[None, :]) + self.actor_noise(noise_schedule.epsilon)
                 s2, r, done, info = self.env.step(a[0])
                 replay_buffer.add(np.reshape(s, (self.state_dim)),
                                   np.reshape(a, (self.action_dim)),
@@ -503,18 +554,30 @@ class DPG(object):
                     y_i[~t_batch] = (r_batch +
                                      self.gamma * target_q.squeeze())[~t_batch]
                     # Update critic given targets
-                    predicted_q_val, _ = self.critic.train(
-                        s_batch, a_batch, y_i[:, None]
-                    )
+                    predicted_q_val, _ = self.critic.train(s_batch, a_batch, y_i[:, None], critic_lr_schedule.epsilon)
                     ep_ave_max_q += np.max(predicted_q_val)
                     # Update the actor policy using the sampled gradient
                     a_outs = self.actor.predict(s_batch)
                     grads = self.critic.action_gradients(s_batch, a_outs)
-                    self.actor.train(s_batch, grads[0])
+                    self.actor.train(s_batch, grads[0], actor_lr_schedule.epsilon)
                     # Update target networks
                     self.actor.update_target_network()
                     self.critic.update_target_network()
+                    actor_lr_schedule.update(i*self.config.max_ep_steps + j)
+                    critic_lr_schedule.update(i * self.config.max_ep_steps + j)
+                    noise_schedule.update(i * self.config.max_ep_steps + j)
                 # Housekeeping
+                if r > best_r:
+                    best_s2 = s2
+                    best_a = a
+                    best_r = r
+                    best_line_losses = self.env.net.res_line.pl_kw
+                    best_line_flow_to = self.env.net.res_line.p_to_kw
+                    best_line_flow_from = self.env.net.res_line.p_from_kw
+                    c1 = np.abs(self.env.net.res_line.p_to_kw - self.env.net.res_line.pl_kw) < self.config.reward_epsilon
+                    c2 = np.abs(self.env.net.res_line.p_from_kw - self.env.net.res_line.pl_kw) < self.config.reward_epsilon
+                    best_reward_logical = np.logical_or(c1.values, c2.values)
+
                 s = s2
                 ep_reward += r
                 if done:
@@ -536,6 +599,26 @@ class DPG(object):
                 s1 = "Average reward: {:04.2f} +/- {:04.2f}    Average Max Q: {:.2f}"
                 msg = s1.format(avg_reward, sigma_reward, avg_q)
                 self.logger.info(msg)
+
+                msg2 = "The max episode reward achieved as: "+str(best_r)
+                # msg3 = "There the actions were "+str(best_a)
+                # msg4 = "There the state was"+str(best_s2)
+                # msg5 = "There the line losses were" + str(best_line_losses)
+                # msg6 = "There the line flows to were" + str(best_line_flow_to)
+                # msg7 = "There the line flows from were" + str(best_line_flow_from)
+                msg8 = "The rewards happened on which lines: "+str(best_reward_logical)
+                msg9 = "The from buses of the lines are: "+str(self.env.net.line.from_bus)
+                msg10 = "The to buses of the lines are: "+str(self.env.net.line.to_bus)
+                self.logger.info(msg2)
+                # self.logger.info(msg3)
+                # self.logger.info(msg4)
+                # self.logger.info(msg5)
+                # self.logger.info(msg6)
+                # self.logger.info(msg7)
+                self.logger.info(msg8)
+                self.logger.info(msg9)
+                self.logger.info(msg10)
+
                 total_rewards = []
                 ave_max_q = []
 
@@ -566,8 +649,7 @@ class DPG(object):
         self.train()
 
 if __name__ == '__main__':
-    #args = parser.parse_args()
-    #config = get_config(args.env_name)
+
     config = get_config('Six_Bus_POC')
     env = NetModel(config=config)
     # train model
