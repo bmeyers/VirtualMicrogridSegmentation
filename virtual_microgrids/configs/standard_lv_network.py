@@ -16,13 +16,12 @@ class StandardLVNetwork(object):
     assigned storage. The initial states of charge (soc) and the capacities can also be changed: these can either be
     floats or lists with length equal to the number of storage elements in the network.
     """
-    def __init__(self, env_name, use_baseline):
+    def __init__(self, env_name, use_baseline, actor):
         self.env_name = env_name
 
         # output config
         baseline_str = 'baseline' if use_baseline else 'no_baseline'
-        self.output_path = "results/{}-{}/".format(self.env_name, baseline_str)
-        self.output_path2 = "results/{}-ddpg/".format(self.env_name)
+        self.output_path = "results/{}-{}-{}/".format(self.env_name, baseline_str, actor)
         self.model_output = self.output_path + "model.weights/"
         self.log_path = self.output_path + "log.txt"
         self.plot_output = self.output_path + "scores.png"

@@ -13,9 +13,9 @@ import os
 import time
 import inspect
 
-from powerflow import NetModel
-from utils.general import get_logger, Progbar, export_plot
-from configs import get_config
+from virtual_microgrids.powerflow import NetModel
+from virtual_microgrids.utils.general import get_logger, Progbar, export_plot
+from virtual_microgrids.configs import get_config
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--env_name', required=True, type=str,

@@ -9,13 +9,12 @@ class ConfigSixBusPOC(object):
     to show that the two sides can be isolated from each other. To change the values initialized here, change config
     after it is instantiated before using it to build the network.
     """
-    def __init__(self, use_baseline):
+    def __init__(self, use_baseline, actor):
         self.env_name = 'Six_Bus_POC'
 
         # output config
         baseline_str       = 'baseline' if use_baseline else 'no_baseline'
-        self.output_path   = "results/{}-{}/".format(self.env_name, baseline_str)
-        self.output_path2 = "results/{}-ddpg/".format(self.env_name)
+        self.output_path   = "results/{}-{}-{}/".format(self.env_name, baseline_str, actor)
         self.model_output  = self.output_path + "model.weights/"
         self.log_path      = self.output_path + "log.txt"
         self.plot_output   = self.output_path + "scores.png"

@@ -18,7 +18,7 @@ import inspect
 
 sys.path.append('..')
 from virtual_microgrids.powerflow import NetModel
-from virtual_microgrids.general import get_logger, Progbar, export_plot
+from virtual_microgrids.utils.general import get_logger, Progbar, export_plot
 from virtual_microgrids.configs import get_config
 from virtual_microgrids.utils import ReplayBuffer, LinearSchedule, OrnsteinUhlenbeckActionNoise
 from virtual_microgrids.agents import ActorNetwork, CriticNetwork
@@ -44,8 +44,8 @@ class DDPG(object):
         Written by course staff.
         """
         # directory for training outputs
-        if not os.path.exists(config.output_path2):
-            os.makedirs(config.output_path2)
+        if not os.path.exists(config.output_path):
+            os.makedirs(config.output_path)
 
         # store hyperparameters
         self.config = config
