@@ -1,0 +1,1 @@
+from virtual_microgrids.configs.config import get_config

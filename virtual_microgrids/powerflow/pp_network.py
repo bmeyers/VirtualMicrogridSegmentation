@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 import pandapower as pp
-from config import get_config
-from network_generation import get_net
+from virtual_microgrids.configs import get_config
+from virtual_microgrids.powerflow.network_generation import get_net
 
 
 class NetModel(object):
