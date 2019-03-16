@@ -179,7 +179,7 @@ class DDPG(object):
                                            self.config.reasonable_max_episodes*self.config.max_ep_steps)
         critic_lr_schedule = LinearSchedule(self.config.critic_learning_rate_start, self.config.critic_learning_rate_end,
                                             self.config.reasonable_max_episodes*self.config.max_ep_steps)
-        noise_schedule = LogSchedule(0.5, 0.001, 20*self.config.max_ep_steps)
+        noise_schedule = LogSchedule(0.1, 0.001, 20*self.config.max_ep_steps)
 
         self.actor.update_target_network()
         self.critic.update_target_network()
@@ -199,7 +199,10 @@ class DDPG(object):
             best_reward_logical = None
 
             for j in range(self.config.max_ep_steps):
-                a = self.actor.predict(s[None, :]) + self.actor_noise(noise_schedule.epsilon)
+                if (i * self.config.max_ep_steps + j) < self.config.max_noisy_episodes :
+                    a = self.actor.predict(s[None, :]) + self.actor_noise(noise_schedule.epsilon)
+                else:
+                    a = self.actor.predict(s[None, :])
                 s2, r, done, info = self.env.step(a[0])
                 replay_buffer.add(np.reshape(s, (self.state_dim)),
                                   np.reshape(a, (self.action_dim)),

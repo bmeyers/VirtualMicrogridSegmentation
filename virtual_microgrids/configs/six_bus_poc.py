@@ -45,6 +45,8 @@ class ConfigSixBusPOC(object):
         self.reasonable_max_episodes = 500
         self.max_ep_steps           = self.max_ep_len
 
+        self.max_noisy_episodes = 5 * self.batch_size
+
         self.actor_learning_rate_start = 1e-3
         self.actor_learning_rate_end = 1e-6
         self.critic_learning_rate_start = 1e-2
