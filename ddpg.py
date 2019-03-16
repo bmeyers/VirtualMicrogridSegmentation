@@ -293,7 +293,7 @@ class CriticNetwork(object):
             out = tf.layers.dense(out, units=self.size, activation=tf.nn.relu)
 
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
-        w_init = tf.initializers.random_uniform(minval=-0.3, maxval=0.3) # Changed from 0.003 values
+        w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003) # Changed from 0.003 values
         out = tf.layers.dense(out, units=1, kernel_initializer=w_init)
 
         return inputs, action, out
@@ -522,11 +522,11 @@ class DPG(object):
 
             # Initialize in case it doesn't ever do better
             best_r = 0.0
-            best_a = 0.0
-            best_line_flow_from = 0.0
-            best_line_flow_to = 0.0
-            best_line_losses = 0.0
-            best_s2 = 0.0
+            best_a = None
+            best_line_flow_from = None
+            best_line_flow_to = None
+            best_line_losses = None
+            best_s2 = None
             best_reward_logical = None
 
             for j in range(self.config.max_ep_steps):
@@ -602,6 +602,8 @@ class DPG(object):
                 # msg6 = "There the line flows to were" + str(best_line_flow_to)
                 # msg7 = "There the line flows from were" + str(best_line_flow_from)
                 msg8 = "The rewards happened on which lines: "+str(best_reward_logical)
+                msg9 = "The from buses of the lines are: "+str(self.env.net.line.from_bus)
+                msg10 = "The to buses of the lines are: "+str(self.env.net.line.to_bus)
                 self.logger.info(msg2)
                 # self.logger.info(msg3)
                 # self.logger.info(msg4)
@@ -609,6 +611,8 @@ class DPG(object):
                 # self.logger.info(msg6)
                 # self.logger.info(msg7)
                 self.logger.info(msg8)
+                self.logger.info(msg9)
+                self.logger.info(msg10)
 
                 total_rewards = []
                 ave_max_q = []
