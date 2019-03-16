@@ -302,7 +302,7 @@ class OrnsteinUhlenbeckActionNoise(object):
     https://github.com/openai/baselines/blob/master/baselines/ddpg/noise.py
     https://math.stackexchange.com/questions/1287634/implementing-ornstein-uhlenbeck-in-matlab
     """
-    def __init__(self, mu, sigma=0.1, theta=.15, dt=1e-2, x0=None):
+    def __init__(self, mu, sigma=0.1 , theta=.15, dt=1e-2, x0=None):
         self.theta = theta
         self.mu = mu
         self.sigma = sigma
@@ -358,8 +358,8 @@ class DPG(object):
         self.tau = self.config.tau
         self.batch_size = self.config.minibatch_size
 
-        self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
-        #self.actor_noise = lambda: np.random.normal(0, 0.2, size=self.action_dim)
+        #self.actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
+        self.actor_noise = lambda: np.random.normal(0, 0.2, size=self.action_dim)
 
         # action space limits
         min_p = []
