@@ -21,6 +21,7 @@ import random
 from powerflow import NetModel
 from utils.general import get_logger, Progbar, export_plot
 from configs import get_config
+from utils import ReplayBuffer
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--env_name', required=True, type=str,
