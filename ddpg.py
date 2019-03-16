@@ -520,8 +520,14 @@ class DPG(object):
             ep_reward = 0
             ep_ave_max_q = 0
 
+            # Initialize in case it doesn't ever do better
             best_r = 0.0
-            
+            best_a = 0.0
+            best_line_flow_from = 0.0
+            best_line_flow_to = 0.0
+            best_line_losses = 0.0
+            best_s2 = 0.0
+            best_reward_logical = None
 
             for j in range(self.config.max_ep_steps):
                 a = self.actor.predict(s[None, :]) + self.actor_noise(noise_schedule.epsilon)
@@ -560,6 +566,12 @@ class DPG(object):
                     best_s2 = s2
                     best_a = a
                     best_r = r
+                    best_line_losses = self.env.net.res_line.pl_kw
+                    best_line_flow_to = self.env.net.res_line.p_to_kw
+                    best_line_flow_from = self.env.net.res_line.p_from_kw
+                    c1 = np.abs(self.env.net.res_line.p_to_kw - self.env.net.res_line.pl_kw) < self.config.reward_epsilon
+                    c2 = np.abs(self.env.net.res_line.p_from_kw - self.env.net.res_line.pl_kw) < self.config.reward_epsilon
+                    best_reward_logical = np.logical_or(c1.values, c2.values)
 
                 s = s2
                 ep_reward += r
@@ -582,13 +594,22 @@ class DPG(object):
                 s1 = "Average reward: {:04.2f} +/- {:04.2f}    Average Max Q: {:.2f}"
                 msg = s1.format(avg_reward, sigma_reward, avg_q)
                 self.logger.info(msg)
+
                 msg2 = "The max episode reward achieved as: "+str(best_r)
-                msg3 = "There the actions were "+str(best_a)
-                msg4 = "There the state was"+str(best_s2)
-                # msg2 = s2.format(str(best_r), str(best_a), str(best_s2))
+                # msg3 = "There the actions were "+str(best_a)
+                # msg4 = "There the state was"+str(best_s2)
+                # msg5 = "There the line losses were" + str(best_line_losses)
+                # msg6 = "There the line flows to were" + str(best_line_flow_to)
+                # msg7 = "There the line flows from were" + str(best_line_flow_from)
+                msg8 = "The rewards happened on which lines: "+str(best_reward_logical)
                 self.logger.info(msg2)
-                self.logger.info(msg3)
-                self.logger.info(msg4)
+                # self.logger.info(msg3)
+                # self.logger.info(msg4)
+                # self.logger.info(msg5)
+                # self.logger.info(msg6)
+                # self.logger.info(msg7)
+                self.logger.info(msg8)
+
                 total_rewards = []
                 ave_max_q = []
 
