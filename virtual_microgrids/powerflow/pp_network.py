@@ -245,20 +245,7 @@ class NetModel(object):
         reward_val: The value of the reward function is returned.
         """
 
-        # self.reward_val = 0.0
-        # for i in range(self.net.line.shape[0]):
-        #     cond1a = np.abs(self.net.res_line.p_to_kw.values[i] -
-        #                     self.net.res_line.pl_kw.values[i]) < eps
-        #     cond1b = np.abs(self.net.res_line.p_from_kw.values[i] -
-        #                     self.net.res_line.pl_kw.values[i]) < eps
-        #     check1 = (cond1a or cond1b)
-        #     cond2a = np.abs(self.net.res_line.q_to_kvar.values[i] -
-        #                     self.net.res_line.ql_kvar.values[i]) < eps
-        #     cond2b = np.abs(self.net.res_line.q_from_kvar.values[i] -
-        #                     self.net.res_line.ql_kvar.values[i]) < eps
-        #     check2 = (cond2a or cond2b)
-        #     if check1 and check2:
-        #         self.reward_val += self.net_zero_reward
+        # 
         c1 = np.abs(self.net.res_line.p_to_kw - self.net.res_line.pl_kw) < eps
         c2 = np.abs(self.net.res_line.p_from_kw - self.net.res_line.pl_kw) < eps
         self.reward_val = np.sum(np.logical_or(c1.values, c2.values), dtype=np.float)
