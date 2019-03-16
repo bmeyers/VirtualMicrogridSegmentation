@@ -15,9 +15,8 @@ import scipy.signal
 import os
 import time
 import inspect
-from collections import deque
-import random
 
+sys.path.append('..')
 from powerflow import NetModel
 from utils.general import get_logger, Progbar, export_plot
 from configs import get_config
