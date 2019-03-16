@@ -73,7 +73,7 @@ class NetModel(object):
         self.run_powerflow()
         # Collect items to return
         state = self.get_state()
-        reward = self.calculate_reward()
+        reward = self.calculate_reward(eps=self.config.reward_epsilon)
         done = self.time >= self.config.max_ep_len - 1
         info = ''
         return state, reward, done, info
@@ -223,7 +223,7 @@ class NetModel(object):
         except:
             print('There was an error running the powerflow! pp.runpp() didnt work')
 
-    def calculate_reward(self, eps=0.01):
+    def calculate_reward(self, eps=0.001):
         """Calculate the reward associated with a power flow result.
 
         We count zero flow through the line as when the power flowing into the

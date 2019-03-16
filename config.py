@@ -14,23 +14,44 @@ class ConfigSixBusPOC(object):
         self.env_name = 'Six_Bus_POC'
 
         # output config
-        baseline_str      = 'baseline' if use_baseline else 'no_baseline'
-        self.output_path  = "results/{}-{}/".format(self.env_name, baseline_str)
-        self.model_output = self.output_path + "model.weights/"
-        self.log_path     = self.output_path + "log.txt"
-        self.plot_output  = self.output_path + "scores.png"
-        self.record_path  = self.output_path
-        self.record_freq  = 5
-        self.summary_freq = 1
+        baseline_str       = 'baseline' if use_baseline else 'no_baseline'
+        self.output_path   = "results/{}-{}/".format(self.env_name, baseline_str)
+        self.output_path2 = "results/{}-ddpg/".format(self.env_name)
+        self.model_output  = self.output_path + "model.weights/"
+        self.log_path      = self.output_path + "log.txt"
+        self.plot_output   = self.output_path + "scores.png"
+        self.record_path   = self.output_path
+        self.record_freq   = 5
+        self.summary_freq  = 1
+        self.summary_freq2 = 20
 
-        # model and training config
+        # model and training - general
+        self.gamma                  = 0.9 # the discount factor
+
+        # model and training config - PG
         self.num_batches            = 500 # number of batches trained on
         self.batch_size             = 1000 # number of steps used to compute each policy update
         self.max_ep_len             = 60 # maximum episode length
         self.learning_rate          = 3e-2
-        self.gamma                  = 0.9 # the discount factor
         self.use_baseline           = use_baseline
         self.normalize_advantage    = True
+
+        # model and training config - DDPG
+        self.tau                    = 0.001
+
+        self.reward_epsilon = 0.001
+
+        self.buffer_size            = 1e6
+        self.minibatch_size         = self.max_ep_len * 4
+        self.max_episodes           = self.num_batches * self.batch_size
+        self.reasonable_max_episodes = 500
+        self.max_ep_steps           = self.max_ep_len
+
+        self.actor_learning_rate_start = 1e-3
+        self.actor_learning_rate_end = 1e-6
+        self.critic_learning_rate_start = 1e-2
+        self.critic_learning_rate_end = 1e-3
+        # self.actor_learning_rate_nsteps = self.max_episodes * self.max_ep_steps  # What should this be?
 
         # environment generation
         self.tstep = 1. / 60
@@ -48,6 +69,15 @@ class ConfigSixBusPOC(object):
         self.battery_locations = [3, 6]
         self.init_soc = 0.5
         self.energy_capacity = 20.0
+
+        # Generation
+        self.gen_locations = None
+
+        # Action space
+        self.gen_p_min = -50.0
+        self.gen_p_max = 0.0
+        self.storage_p_min = -10.0
+        self.storage_p_max = 10.0
 
         # parameters for the policy and baseline models
         self.n_layers               = 1
@@ -81,21 +111,34 @@ class StandardLVNetwork(object):
         # output config
         baseline_str = 'baseline' if use_baseline else 'no_baseline'
         self.output_path = "results/{}-{}/".format(self.env_name, baseline_str)
+        self.output_path2 = "results/{}-ddpg/".format(self.env_name)
         self.model_output = self.output_path + "model.weights/"
         self.log_path = self.output_path + "log.txt"
         self.plot_output = self.output_path + "scores.png"
         self.record_path = self.output_path
         self.record_freq = 5
         self.summary_freq = 1
+        self.summary_freq2 = 1000
 
-        # model and training config
-        self.num_batches = 100  # number of batches trained on
-        self.batch_size = 1000  # number of steps used to compute each policy update
-        self.max_ep_len = 60  # maximum episode length
-        self.learning_rate = 3e-2
-        self.gamma = 0.9  # the discount factor
-        self.use_baseline = use_baseline
-        self.normalize_advantage = True
+        # model and training - general
+        self.gamma                  = 0.9  # the discount factor
+
+        # model and training config - PG
+        self.num_batches            = 500  # number of batches trained on
+        self.batch_size             = 1000  # number of steps used to compute each policy update
+        self.max_ep_len             = 60  # maximum episode length
+        self.learning_rate          = 3e-2
+        self.use_baseline           = use_baseline
+        self.normalize_advantage    = True
+
+        # model and training config - DDPG
+        self.tau                    = 0.001
+        self.actor_learning_rate    = 1e-3
+        self.critic_learning_rate   = 1e-2
+        self.buffer_size            = 1e6
+        self.minibatch_size         = 64
+        self.max_episodes           = 500
+        self.max_ep_steps           = self.max_ep_len
 
         self.remove_q = True
         self.clear_loads_sgen = False
@@ -124,6 +167,13 @@ class StandardLVNetwork(object):
         self.percent_battery_buses = 0.5  # How many of the buses should be assigned batteries
         self.batteries_on_leaf_nodes_only = True
 
+        # Action space
+        self.gen_p_min = -50.0
+        self.gen_p_max = 0.0
+        self.storage_p_min = -50.0
+        self.storage_p_max = 50.0
+
+        # Generation
         self.gen_locations = [4]
         self.gen_max_p_kw = [20.0]
 
@@ -141,7 +191,7 @@ class StandardLVNetwork(object):
             self.max_ep_len = self.batch_size
 
 
-def get_config(env_name, baseline):
+def get_config(env_name, baseline=True):
     """Given an environment name and the baseline option, return the configuration."""
     if env_name == 'Six_Bus_POC':
         return ConfigSixBusPOC(baseline)

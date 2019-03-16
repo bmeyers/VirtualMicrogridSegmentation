@@ -8,12 +8,15 @@ def get_net(config):
     if config.env_name == 'Six_Bus_POC':
         return six_bus(config.vn_high, config.vn_low, config.length_km,
                        config.std_type, config.battery_locations, config.init_soc,
-                       config.energy_capacity, config.static_feeds)
+                       config.energy_capacity, config.static_feeds, config.gen_locations,
+                       config.gen_p_max, config.gen_p_min, config.storage_p_max,
+                       config.storage_p_min)
     if config.env_name in ['rural_1', 'rural_2', 'village_1', 'village_2', 'suburb_1']:
         return standard_lv(config.env_name, config.remove_q, config.static_feeds_new, config.clear_loads_sgen,
                            config.clear_gen, config.battery_locations, config.percent_battery_buses,
                            config.batteries_on_leaf_nodes_only, config.init_soc, config.energy_capacity,
-                           config.gen_locations)
+                           config.gen_locations, config.gen_p_max, config.gen_p_min, config.storage_p_max,
+                           config.storage_p_min)
 
 
 def add_battery(net, bus_number, p_init, energy_capacity, init_soc=0.5,
@@ -52,7 +55,8 @@ def add_battery(net, bus_number, p_init, energy_capacity, init_soc=0.5,
 
 
 def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', battery_locations=[3, 6], init_soc=0.5,
-            energy_capacity=20.0, static_feeds=None):
+            energy_capacity=20.0, static_feeds=None, gen_locations=None, gen_p_max=0.0, gen_p_min=-50.0,
+            storage_p_max=50.0, storage_p_min=-50.0):
     """This function creates the network model for the 6 bus POC network from scratch.
 
     Buses and lines are added to an empty network based on a hard-coded topology and parameters from the config file
@@ -102,7 +106,15 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
             init_soc_here = init_soc[idx]
 
         add_battery(net, bus_number=bus_number, p_init=0.0, energy_capacity=energy_capacity_here,
-                    init_soc=init_soc_here)
+                    init_soc=init_soc_here, max_p=storage_p_max, min_p=storage_p_min)
+
+    # Add controllable generator
+    if gen_locations is not None:
+        for idx, bus_number in enumerate(gen_locations):
+            pp.create_gen(net, bus_number, p_kw=0.0, min_q_kvar=0.0, max_q_kvar=0.0, min_p_kw=gen_p_min,
+            max_p_kw=gen_p_max)
+
+            ##### TODO : Have different limits for different generators and storage #####
 
     #  add loads and static generation
     if static_feeds is None:
@@ -122,7 +134,8 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
 
 def standard_lv(env_name, remove_q=True, static_feeds_new=None, clear_loads_sgen=False, clear_gen=True,
                 battery_locations=None, percent_battery_buses=0.5, batteries_on_leaf_nodes_only=True, init_soc=0.5,
-                energy_capacity=20.0, gen_locations=None):
+                energy_capacity=20.0, gen_locations=None, gen_p_max=0.0, gen_p_min=-50.0,
+            storage_p_max=50.0, storage_p_min=-50.0):
     """This function creates a network model using the set of synthetic voltage control low voltage (LV) networks from
     pandapower.
 
@@ -186,11 +199,12 @@ def standard_lv(env_name, remove_q=True, static_feeds_new=None, clear_loads_sgen
                 if np.size(energy_capacity) == num_batteries:
                     init_soc_here = init_soc[idx]
             add_battery(net, bus_number=bus_number, p_init=0.0, energy_capacity=energy_capacity_here,
-                        init_soc=init_soc_here)
+                        init_soc=init_soc_here, max_p=storage_p_max, min_p=storage_p_min)
     # Add controllable generator
     if gen_locations is not None:
         for idx, bus_number in enumerate(gen_locations):
-            pp.create_gen(net, bus_number, p_kw=0.0, min_q_kvar=0.0, max_q_kvar=0.0)
+            pp.create_gen(net, bus_number, p_kw=0.0, min_q_kvar=0.0, max_q_kvar=0.0, max_p_kw=gen_p_max,
+                          min_p_kw=gen_p_min)
 
     if static_feeds_new is None:
         print('No loads or generation added to network')
