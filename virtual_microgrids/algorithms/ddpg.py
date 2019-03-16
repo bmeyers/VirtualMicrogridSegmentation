@@ -126,7 +126,7 @@ class DDPG(object):
 
         # logging
         self.merged = tf.summary.merge_all()
-        self.file_writer = tf.summary.FileWriter(self.config.output_path2,self.sess.graph)
+        self.file_writer = tf.summary.FileWriter(self.config.output_path,self.sess.graph)
 
     def init_averages(self):
         """
