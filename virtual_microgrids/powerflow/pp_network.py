@@ -1,8 +1,10 @@
 import numpy as np
 import pandas as pd
 import pandapower as pp
+from copy import deepcopy
 from virtual_microgrids.configs import get_config
 from virtual_microgrids.powerflow.network_generation import get_net
+from virtual_microgrids.utils import Graph
 
 
 class NetModel(object):
@@ -35,6 +37,9 @@ class NetModel(object):
         self.n_storage = len(self.net.storage)
         self.observation_dim = self.n_load + self.n_sgen + self.n_gen + 2 * self.n_storage
         self.action_dim = self.n_gen + self.n_storage
+        self.graph = Graph(len(self.net.bus))
+        for idx, entry in self.net.line.iterrows():
+            self.graph.addEdge(entry.from_bus, entry.to_bus)
 
     def reset(self):
         """Reset the network and reward values back to how they were initialized."""
@@ -223,7 +228,7 @@ class NetModel(object):
         except:
             print('There was an error running the powerflow! pp.runpp() didnt work')
 
-    def calculate_reward(self, eps=0.001):
+    def calculate_reward(self, eps=0.001, type=2):
         """Calculate the reward associated with a power flow result.
 
         We count zero flow through the line as when the power flowing into the
@@ -244,12 +249,28 @@ class NetModel(object):
         ----------
         reward_val: The value of the reward function is returned.
         """
-
-        # 
         c1 = np.abs(self.net.res_line.p_to_kw - self.net.res_line.pl_kw) < eps
         c2 = np.abs(self.net.res_line.p_from_kw - self.net.res_line.pl_kw) < eps
-        self.reward_val = np.sum(np.logical_or(c1.values, c2.values), dtype=np.float)
-
+        zeroed_lines = np.logical_or(c1.values, c2.values)
+        # Type 1 Reward: count of lines with zero-net-flow
+        if type == 1:
+            self.reward_val = np.sum(zeroed_lines, dtype=np.float)
+        # Type 2 Reward: count of nodes not pulling power from grid
+        elif type == 2:
+            graph_new = deepcopy(self.graph)
+            for line_idx, zeroed in enumerate(zeroed_lines):
+                if zeroed:
+                    v = self.net.line.from_bus[line_idx]
+                    w = self.net.line.to_bus[line_idx]
+                    graph_new.removeEdge(v, w)
+            self.reward_val = 0
+            ext_connections = self.net.ext_grid.bus.values
+            for subgraph in graph_new.connectedComponents():
+                if not np.any([item in subgraph for item in ext_connections]):
+                    self.reward_val += len(subgraph)
+        # Type 3 Reward: same as Type 2 plus penalty for total power to/from grid
+        elif type == 3:
+            pass
         # Costs for running batteries
         cap_costs = self.net.storage.cap_cost
         max_e = self.net.storage.max_e_kwh
@@ -261,5 +282,5 @@ class NetModel(object):
         return self.reward_val
 
 if __name__ == "__main__":
-    env1 = NetModel(env_name='suburb_1')
-
+    env1 = NetModel(env_name='Six_Bus_POC')
+    env1.step([-0.02, -0.02])

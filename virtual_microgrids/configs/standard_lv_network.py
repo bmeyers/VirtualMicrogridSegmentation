@@ -43,6 +43,7 @@ class StandardLVNetwork(object):
 
         # model and training config - DDPG
         self.tau                    = 0.001
+        self.reward_epsilon = 0.001
         self.actor_learning_rate    = 1e-3
         self.critic_learning_rate   = 1e-2
         self.buffer_size            = 1e6
