@@ -180,7 +180,7 @@ class DDPG(object):
                                            self.config.reasonable_max_episodes*self.config.max_ep_steps)
         critic_lr_schedule = LinearSchedule(self.config.critic_learning_rate_start, self.config.critic_learning_rate_end,
                                             self.config.reasonable_max_episodes*self.config.max_ep_steps)
-        noise_schedule = LogSchedule(0.5, 0.01, self.config.reasonable_max_episodes*self.config.max_ep_steps)
+        noise_schedule = LinearSchedule(0.5, 0.1, self.config.reasonable_max_episodes*self.config.max_ep_steps)
         # works with 0.5, 0.01 Linear
 
         self.actor.update_target_network()
