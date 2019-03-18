@@ -265,9 +265,12 @@ class NetModel(object):
                     graph_new.removeEdge(v, w)
             self.reward_val = 0
             ext_connections = self.net.ext_grid.bus.values
+            num_vmgs = 0
             for subgraph in graph_new.connectedComponents():
                 if not np.any([item in subgraph for item in ext_connections]):
                     self.reward_val += len(subgraph)
+                    num_vmgs += 1
+            self.reward_val *= num_vmgs
         # Type 3 Reward: same as Type 2 plus penalty for total power to/from grid
         elif type == 3:
             pass
