@@ -283,6 +283,8 @@ class PG(object):
     episode_rewards = []
     paths = []
     t = 0
+    best_r = 0.0
+    best_reward_logical = None
 
     while (num_episodes or t < self.config.batch_size):
       state = env.reset()
@@ -296,6 +298,11 @@ class PG(object):
         actions.append(action)
         rewards.append(reward)
         episode_reward += reward
+        if reward > best_r:
+          best_r = reward
+          c1 = np.abs(env.net.res_line.p_to_kw - self.env.net.res_line.pl_kw) < self.config.reward_epsilon
+          c2 = np.abs(env.net.res_line.p_from_kw - self.env.net.res_line.pl_kw) < self.config.reward_epsilon
+          best_reward_logical = np.logical_or(c1.values, c2.values)
         t += 1
         if (done or step == self.config.max_ep_len-1):
           episode_rewards.append(episode_reward)
@@ -311,7 +318,7 @@ class PG(object):
       if num_episodes and episode >= num_episodes:
         break
 
-    return paths, episode_rewards
+    return paths, episode_rewards, best_r, best_reward_logical
 
   def get_returns(self, paths):
     """
@@ -398,7 +405,7 @@ class PG(object):
     for t in range(self.config.num_batches):
 
       # collect a minibatch of samples
-      paths, total_rewards = self.sample_path(self.env)
+      paths, total_rewards, best_r, best_reward_logical = self.sample_path(self.env)
       scores_eval = scores_eval + total_rewards
       observations = np.concatenate([path["observation"] for path in paths])
       actions = np.concatenate([path["action"] for path in paths])
@@ -422,9 +429,20 @@ class PG(object):
 
       # compute reward statistics for this batch and log
       avg_reward = np.mean(total_rewards)
+      best_ep_reward = np.max(total_rewards)
       sigma_reward = np.sqrt(np.var(total_rewards) / len(total_rewards))
-      msg = "Average reward: {:04.2f} +/- {:04.2f}".format(avg_reward, sigma_reward)
+      s1 = "---------------------------------------------------------\n" \
+           + "Average reward: {:04.2f} +/- {:04.2f}"
+      msg = s1.format(avg_reward, sigma_reward)
       self.logger.info(msg)
+      msg4 = "Best episode reward: {}".format(best_ep_reward)
+      self.logger.info(msg4)
+
+      msg2 = "Max single reward: " + str(best_r)
+      msg3 = "Max reward happened on lines: " + str(best_reward_logical)
+      end = "\n--------------------------------------------------------"
+      self.logger.info(msg2)
+      self.logger.info(msg3 + end)
 
     self.logger.info("- Training done.")
     export_plot(scores_eval, "Score", self.config.env_name, self.config.plot_output)
@@ -453,8 +471,9 @@ class PG(object):
     self.train()
 
 if __name__ == '__main__':
-    args = parser.parse_args()
-    config = get_config(args.env_name, args.use_baseline)
+    #args = parser.parse_args()
+    #config = get_config(args.env_name, args.use_baseline)
+    config = get_config('Six_Bus_POC', algorithm='PG')
     env = NetModel(config=config)
     # train model
     model = PG(env, config)
