@@ -19,7 +19,8 @@ parser.add_argument('--no-baseline', dest='use_baseline', action='store_false')
 parser.set_defaults(use_baseline=True)
 
 
-def build_mlp(mlp_input, output_size, scope, n_layers, size, output_activation=None):
+def build_mlp(mlp_input, output_size, scope, n_layers, size, in_training_mode,
+              output_activation=None):
   """
   Build a feed forward network (multi-layer perceptron, or mlp)
   with 'n_layers' hidden layers, each of size 'size' units.
@@ -38,7 +39,10 @@ def build_mlp(mlp_input, output_size, scope, n_layers, size, output_activation=N
   with tf.variable_scope(scope):
     out = tf.layers.flatten(mlp_input)
     for i in range(n_layers):
-      out = tf.layers.dense(out, units=size, activation=tf.nn.relu)
+      out = tf.keras.layers.Dense(units=size, activation=None)(out)
+      out = tf.keras.layers.BatchNormalization()(out,
+                                                 training=in_training_mode)
+      out = tf.keras.activations.relu(out)
     out = tf.layers.dense(out, units=output_size, activation=output_activation)
 
   return out
@@ -96,6 +100,7 @@ class PG(object):
     self.advantage_placeholder = tf.placeholder(shape=[None],
                                                 dtype=tf.float32,
                                                 name='advantage')
+    self.in_training_placeholder = tf.placeholder(tf.bool)
 
   def build_policy_network_op(self, scope = "policy_network"):
     """
@@ -109,7 +114,7 @@ class PG(object):
     """
     action_means = build_mlp(self.observation_placeholder, self.action_dim,
                              scope, self.config.n_layers, self.config.layer_size,
-                             output_activation=None)
+                             self.in_training_placeholder, output_activation=None)
     with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
       log_std = tf.get_variable("log_std", [self.action_dim])
     self.sampled_action = action_means + tf.multiply(tf.exp(log_std), tf.random_normal(tf.shape(action_means)))
@@ -130,9 +135,10 @@ class PG(object):
     """
     Set 'self.train_op' using AdamOptimizer
     """
-
-    optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
-    self.train_op = optimizer.minimize(self.loss)
+    extra_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    with tf.control_dependencies(extra_ops):
+      optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
+      self.train_op = optimizer.minimize(self.loss)
 
   def add_baseline_op(self, scope = "baseline"):
     """
@@ -148,16 +154,19 @@ class PG(object):
 
     """
 
+    self.baseline_in_training_placeholder = tf.placeholder(tf.bool)
     self.baseline = tf.squeeze(build_mlp(self.observation_placeholder, 1, scope,
-                                         self.config.n_layers, self.config.layer_size))
+                                         self.config.n_layers, self.config.layer_size,
+                                         self.baseline_in_training_placeholder))
 
     self.baseline_target_placeholder = tf.placeholder(shape=[None], dtype=tf.float32, name='baseline')
 
     self.baseline_loss = tf.losses.mean_squared_error(labels=self.baseline_target_placeholder,
                                                       predictions=self.baseline)
-
-    optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
-    self.update_baseline_op = optimizer.minimize(self.baseline_loss)
+    extra_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    with tf.control_dependencies(extra_ops):
+      optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
+      self.update_baseline_op = optimizer.minimize(self.baseline_loss)
 
   def build(self):
     """
@@ -291,7 +300,8 @@ class PG(object):
 
       for step in range(self.config.max_ep_len):
         states.append(state)
-        action = self.sess.run(self.sampled_action, feed_dict={self.observation_placeholder : states[-1][None]})[0]
+        action = self.sess.run(self.sampled_action, feed_dict={self.observation_placeholder : states[-1][None],
+                                                               self.in_training_placeholder: False})[0]
         state, reward, done, info = env.step(action)
         actions.append(action)
         rewards.append(reward)
@@ -372,7 +382,8 @@ class PG(object):
 
     if self.config.use_baseline:
       adv = returns - self.sess.run(self.baseline, feed_dict={self.observation_placeholder: observations,
-                                              self.baseline_target_placeholder: returns})
+                                              self.baseline_target_placeholder: returns,
+                                              self.baseline_in_training_placeholder: False})
 
     if self.config.normalize_advantage:
       adv = (adv - np.mean(adv))/np.std(adv)
@@ -388,7 +399,8 @@ class PG(object):
             observations: observations
     """
     self.sess.run(self.update_baseline_op, feed_dict={self.observation_placeholder: observations,
-                                                      self.baseline_target_placeholder: returns})
+                                                      self.baseline_target_placeholder: returns,
+                                                      self.baseline_in_training_placeholder: True})
 
   def train(self):
     """
@@ -419,7 +431,8 @@ class PG(object):
       self.sess.run(self.train_op, feed_dict={
                     self.observation_placeholder : observations,
                     self.action_placeholder : actions,
-                    self.advantage_placeholder : advantages})
+                    self.advantage_placeholder : advantages,
+                    self.in_training_placeholder: True})
 
       # tf stuff
       if (t % self.config.summary_freq == 0):
