@@ -82,6 +82,9 @@ class ConfigSixBusPOC(object):
         self.storage_p_min = -5.0
         self.storage_p_max = 5.0
 
+        # state space
+        self.with_soc = False
+
         # parameters for the policy and baseline models
         self.n_layers               = 1
         self.layer_size             = 16
