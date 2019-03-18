@@ -21,7 +21,7 @@ sys.path.append('..')
 from virtual_microgrids.powerflow import NetModel
 from virtual_microgrids.utils.general import get_logger, Progbar, export_plot
 from virtual_microgrids.configs import get_config
-from virtual_microgrids.utils import ReplayBuffer, LinearSchedule, OrnsteinUhlenbeckActionNoise
+from virtual_microgrids.utils import ReplayBuffer, LinearSchedule, LogSchedule, OrnsteinUhlenbeckActionNoise
 from virtual_microgrids.agents import ActorNetwork, CriticNetwork
 
 parser = argparse.ArgumentParser()
@@ -180,8 +180,9 @@ class DDPG(object):
                                            self.config.reasonable_max_episodes*self.config.max_ep_steps)
         critic_lr_schedule = LinearSchedule(self.config.critic_learning_rate_start, self.config.critic_learning_rate_end,
                                             self.config.reasonable_max_episodes*self.config.max_ep_steps)
-        noise_schedule = LinearSchedule(0.5, 0.01, self.config.reasonable_max_episodes*self.config.max_ep_steps)
-        # works with 0.5, 0.01 Linear
+        noise_schedule = LogSchedule(0.5, 0.0001, self.config.reasonable_max_episodes*self.config.max_ep_steps)
+
+        # noise_schedule = LinearSchedule(0.5, 0.01, self.config.reasonable_max_episodes*self.config.max_ep_steps)
 
         self.actor.update_target_network()
         self.critic.update_target_network()
@@ -234,7 +235,7 @@ class DDPG(object):
                     self.critic.update_target_network()
                     actor_lr_schedule.update(i*self.config.max_ep_steps + j)
                     critic_lr_schedule.update(i * self.config.max_ep_steps + j)
-                    noise_schedule.update(i * self.config.max_ep_steps + j)
+                noise_schedule.update(i * self.config.max_ep_steps + j)
                 # Housekeeping
                 if r > best_r:
                     best_r = r

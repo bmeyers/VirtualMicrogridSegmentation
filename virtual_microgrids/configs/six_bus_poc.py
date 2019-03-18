@@ -47,7 +47,7 @@ class ConfigSixBusPOC(object):
         self.buffer_size            = 1e6
         self.minibatch_size         = self.max_ep_len * 4
         self.max_episodes           = 1600
-        self.reasonable_max_episodes = min(500, self.max_episodes)
+        self.reasonable_max_episodes = min(600, self.max_episodes)
         self.max_ep_steps           = self.max_ep_len
 
         self.actor_learning_rate_start = 1e-3
@@ -71,7 +71,7 @@ class ConfigSixBusPOC(object):
         }
         self.battery_locations = [3, 6]
         self.init_soc = 0.5
-        self.energy_capacity = 20.0
+        self.energy_capacity = 21.0  # changed from 20 to see if endpoint problem
 
         # Generation
         self.gen_locations = None
