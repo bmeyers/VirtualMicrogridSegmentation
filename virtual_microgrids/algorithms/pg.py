@@ -1,17 +1,11 @@
 # -*- coding: UTF-8 -*-
 """The base of this code was prepared for a homework by course staff for CS234 at Stanford, Winter 2019."""
 
-import os
 import argparse
-import sys
-import logging
-import time
 import numpy as np
 import tensorflow as tf
-import scipy.signal
 import os
-import time
-import inspect
+import matplotlib.pyplot as plt
 
 from virtual_microgrids.powerflow import NetModel
 from virtual_microgrids.utils.general import get_logger, Progbar, export_plot
@@ -25,7 +19,8 @@ parser.add_argument('--no-baseline', dest='use_baseline', action='store_false')
 parser.set_defaults(use_baseline=True)
 
 
-def build_mlp(mlp_input, output_size, scope, n_layers, size, output_activation=None):
+def build_mlp(mlp_input, output_size, scope, n_layers, size, in_training_mode,
+              output_activation=None):
   """
   Build a feed forward network (multi-layer perceptron, or mlp)
   with 'n_layers' hidden layers, each of size 'size' units.
@@ -44,8 +39,12 @@ def build_mlp(mlp_input, output_size, scope, n_layers, size, output_activation=N
   with tf.variable_scope(scope):
     out = tf.layers.flatten(mlp_input)
     for i in range(n_layers):
-      out = tf.layers.dense(out, units=size, activation=tf.nn.relu)
-    out = tf.layers.dense(out, units=output_size, activation=output_activation)
+      out = tf.keras.layers.Dense(units=size, activation=None)(out)
+      #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
+      out = tf.keras.activations.relu(out)
+    w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003)
+    out = tf.layers.Dense(units=output_size, activation=output_activation,
+                          kernel_initializer=w_init)(out)
 
   return out
 
@@ -102,6 +101,7 @@ class PG(object):
     self.advantage_placeholder = tf.placeholder(shape=[None],
                                                 dtype=tf.float32,
                                                 name='advantage')
+    self.in_training_placeholder = tf.placeholder(tf.bool)
 
   def build_policy_network_op(self, scope = "policy_network"):
     """
@@ -115,7 +115,7 @@ class PG(object):
     """
     action_means = build_mlp(self.observation_placeholder, self.action_dim,
                              scope, self.config.n_layers, self.config.layer_size,
-                             output_activation=None)
+                             self.in_training_placeholder, output_activation=None)
     with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
       log_std = tf.get_variable("log_std", [self.action_dim])
     self.sampled_action = action_means + tf.multiply(tf.exp(log_std), tf.random_normal(tf.shape(action_means)))
@@ -136,9 +136,10 @@ class PG(object):
     """
     Set 'self.train_op' using AdamOptimizer
     """
-
-    optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
-    self.train_op = optimizer.minimize(self.loss)
+    extra_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    with tf.control_dependencies(extra_ops):
+      optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
+      self.train_op = optimizer.minimize(self.loss)
 
   def add_baseline_op(self, scope = "baseline"):
     """
@@ -154,16 +155,19 @@ class PG(object):
 
     """
 
+    self.baseline_in_training_placeholder = tf.placeholder(tf.bool)
     self.baseline = tf.squeeze(build_mlp(self.observation_placeholder, 1, scope,
-                                         self.config.n_layers, self.config.layer_size))
+                                         self.config.n_layers, self.config.layer_size,
+                                         self.baseline_in_training_placeholder))
 
     self.baseline_target_placeholder = tf.placeholder(shape=[None], dtype=tf.float32, name='baseline')
 
     self.baseline_loss = tf.losses.mean_squared_error(labels=self.baseline_target_placeholder,
                                                       predictions=self.baseline)
-
-    optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
-    self.update_baseline_op = optimizer.minimize(self.baseline_loss)
+    extra_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    with tf.control_dependencies(extra_ops):
+      optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
+      self.update_baseline_op = optimizer.minimize(self.baseline_loss)
 
   def build(self):
     """
@@ -283,24 +287,37 @@ class PG(object):
     episode_rewards = []
     paths = []
     t = 0
+    best_r = 0.0
+    best_reward_logical = None
 
     while (num_episodes or t < self.config.batch_size):
       state = env.reset()
       states, actions, rewards = [], [], []
       episode_reward = 0
 
+      soc_track = np.zeros((self.config.max_ep_steps, self.env.net.storage.shape[0]))
+      p_track = np.zeros((self.config.max_ep_steps, self.env.net.storage.shape[0]))
+      reward_track = np.zeros((self.config.max_ep_steps, 1))
+
       for step in range(self.config.max_ep_len):
         states.append(state)
-        action = self.sess.run(self.sampled_action, feed_dict={self.observation_placeholder : states[-1][None]})[0]
+        action = self.sess.run(self.sampled_action, feed_dict={self.observation_placeholder : states[-1][None],
+                                                               self.in_training_placeholder: False})[0]
         state, reward, done, info = env.step(action)
         actions.append(action)
         rewards.append(reward)
         episode_reward += reward
+        soc_track[step, :] = self.env.net.storage.soc_percent
+        p_track[step, :] = self.env.net.storage.p_kw
+        reward_track[step] = reward
+        if reward > best_r:
+          best_r = reward
+          c1 = np.abs(env.net.res_line.p_to_kw - self.env.net.res_line.pl_kw) < self.config.reward_epsilon
+          c2 = np.abs(env.net.res_line.p_from_kw - self.env.net.res_line.pl_kw) < self.config.reward_epsilon
+          best_reward_logical = np.logical_or(c1.values, c2.values)
         t += 1
         if (done or step == self.config.max_ep_len-1):
           episode_rewards.append(episode_reward)
-          break
-        if (not num_episodes) and t == self.config.batch_size:
           break
 
       path = {"observation" : np.array(states),
@@ -311,7 +328,7 @@ class PG(object):
       if num_episodes and episode >= num_episodes:
         break
 
-    return paths, episode_rewards
+    return paths, episode_rewards, best_r, best_reward_logical, soc_track, p_track, reward_track
 
   def get_returns(self, paths):
     """
@@ -366,7 +383,8 @@ class PG(object):
 
     if self.config.use_baseline:
       adv = returns - self.sess.run(self.baseline, feed_dict={self.observation_placeholder: observations,
-                                              self.baseline_target_placeholder: returns})
+                                              self.baseline_target_placeholder: returns,
+                                              self.baseline_in_training_placeholder: False})
 
     if self.config.normalize_advantage:
       adv = (adv - np.mean(adv))/np.std(adv)
@@ -382,7 +400,8 @@ class PG(object):
             observations: observations
     """
     self.sess.run(self.update_baseline_op, feed_dict={self.observation_placeholder: observations,
-                                                      self.baseline_target_placeholder: returns})
+                                                      self.baseline_target_placeholder: returns,
+                                                      self.baseline_in_training_placeholder: True})
 
   def train(self):
     """
@@ -398,7 +417,7 @@ class PG(object):
     for t in range(self.config.num_batches):
 
       # collect a minibatch of samples
-      paths, total_rewards = self.sample_path(self.env)
+      paths, total_rewards, best_r, best_reward_logical, soc_track, p_track, reward_track = self.sample_path(self.env)
       scores_eval = scores_eval + total_rewards
       observations = np.concatenate([path["observation"] for path in paths])
       actions = np.concatenate([path["action"] for path in paths])
@@ -413,7 +432,8 @@ class PG(object):
       self.sess.run(self.train_op, feed_dict={
                     self.observation_placeholder : observations,
                     self.action_placeholder : actions,
-                    self.advantage_placeholder : advantages})
+                    self.advantage_placeholder : advantages,
+                    self.in_training_placeholder: True})
 
       # tf stuff
       if (t % self.config.summary_freq == 0):
@@ -422,12 +442,43 @@ class PG(object):
 
       # compute reward statistics for this batch and log
       avg_reward = np.mean(total_rewards)
+      best_ep_reward = np.max(total_rewards)
       sigma_reward = np.sqrt(np.var(total_rewards) / len(total_rewards))
-      msg = "Average reward: {:04.2f} +/- {:04.2f}".format(avg_reward, sigma_reward)
+      s1 = "---------------------------------------------------------\n" \
+           + "Average reward: {:04.2f} +/- {:04.2f}"
+      msg = s1.format(avg_reward, sigma_reward)
       self.logger.info(msg)
+      msg4 = "Best episode reward: {}".format(best_ep_reward)
+      self.logger.info(msg4)
+
+      msg2 = "Max single reward: " + str(best_r)
+      msg3 = "Max reward happened on lines: " + str(best_reward_logical)
+      end = "\n--------------------------------------------------------"
+      self.logger.info(msg2)
+      self.logger.info(msg3 + end)
+
+      fig, ax = plt.subplots(nrows=3, sharex=True)
+      xs = np.arange(self.config.max_ep_steps)
+      for k_step in range(self.env.net.storage.shape[0]):
+        ax[1].plot(xs, soc_track[:, k_step].ravel(), marker='.',
+                   label='soc_{}'.format(k_step + 1))
+        ax[0].plot(xs, p_track[:, k_step].ravel(), marker='.',
+                   label='pset_{}'.format(k_step + 1))
+      ax[0].legend()
+      ax[1].legend()
+      ax[2].stem(xs, reward_track, label='reward')
+      ax[2].legend()
+      ax[2].set_xlabel('time')
+      ax[0].set_ylabel('Power (kW)')
+      ax[1].set_ylabel('State of Charge')
+      ax[2].set_ylabel('Reward Received')
+      ax[0].set_title('Battery Behavior and Rewards')
+      plt.tight_layout()
+      plt.savefig(self.config.output_path + 'soc_plot_{}.png'.format(t))
+      plt.close()
 
     self.logger.info("- Training done.")
-    export_plot(scores_eval, "Score", config.env_name, self.config.plot_output)
+    export_plot(scores_eval, "Score", self.config.env_name, self.config.plot_output)
 
   def evaluate(self, env=None, num_episodes=1):
     """
@@ -453,8 +504,9 @@ class PG(object):
     self.train()
 
 if __name__ == '__main__':
-    args = parser.parse_args()
-    config = get_config(args.env_name, args.use_baseline)
+    #args = parser.parse_args()
+    #config = get_config(args.env_name, args.use_baseline)
+    config = get_config('Six_Bus_POC', algorithm='PG')
     env = NetModel(config=config)
     # train model
     model = PG(env, config)

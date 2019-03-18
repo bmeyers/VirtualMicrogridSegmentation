@@ -1,8 +1,10 @@
 import numpy as np
 import pandas as pd
 import pandapower as pp
+from copy import deepcopy
 from virtual_microgrids.configs import get_config
 from virtual_microgrids.powerflow.network_generation import get_net
+from virtual_microgrids.utils import Graph
 
 
 class NetModel(object):
@@ -35,6 +37,9 @@ class NetModel(object):
         self.n_storage = len(self.net.storage)
         self.observation_dim = self.n_load + self.n_sgen + self.n_gen + 2 * self.n_storage
         self.action_dim = self.n_gen + self.n_storage
+        self.graph = Graph(len(self.net.bus))
+        for idx, entry in self.net.line.iterrows():
+            self.graph.addEdge(entry.from_bus, entry.to_bus)
 
     def reset(self):
         """Reset the network and reward values back to how they were initialized."""
@@ -74,7 +79,7 @@ class NetModel(object):
         # Collect items to return
         state = self.get_state()
         reward = self.calculate_reward(eps=self.config.reward_epsilon)
-        done = self.time >= self.config.max_ep_len - 1
+        done = self.time >= self.config.max_ep_len
         info = ''
         return state, reward, done, info
 
@@ -223,7 +228,7 @@ class NetModel(object):
         except:
             print('There was an error running the powerflow! pp.runpp() didnt work')
 
-    def calculate_reward(self, eps=0.001):
+    def calculate_reward(self, eps=0.001, type=4):
         """Calculate the reward associated with a power flow result.
 
         We count zero flow through the line as when the power flowing into the
@@ -244,25 +249,41 @@ class NetModel(object):
         ----------
         reward_val: The value of the reward function is returned.
         """
-
-        # self.reward_val = 0.0
-        # for i in range(self.net.line.shape[0]):
-        #     cond1a = np.abs(self.net.res_line.p_to_kw.values[i] -
-        #                     self.net.res_line.pl_kw.values[i]) < eps
-        #     cond1b = np.abs(self.net.res_line.p_from_kw.values[i] -
-        #                     self.net.res_line.pl_kw.values[i]) < eps
-        #     check1 = (cond1a or cond1b)
-        #     cond2a = np.abs(self.net.res_line.q_to_kvar.values[i] -
-        #                     self.net.res_line.ql_kvar.values[i]) < eps
-        #     cond2b = np.abs(self.net.res_line.q_from_kvar.values[i] -
-        #                     self.net.res_line.ql_kvar.values[i]) < eps
-        #     check2 = (cond2a or cond2b)
-        #     if check1 and check2:
-        #         self.reward_val += self.net_zero_reward
         c1 = np.abs(self.net.res_line.p_to_kw - self.net.res_line.pl_kw) < eps
         c2 = np.abs(self.net.res_line.p_from_kw - self.net.res_line.pl_kw) < eps
-        self.reward_val = np.sum(np.logical_or(c1.values, c2.values), dtype=np.float)
+        zeroed_lines = np.logical_or(c1.values, c2.values)
+        # Type 1 Reward: count of lines with zero-net-flow
+        if type == 1:
+            self.reward_val = np.sum(zeroed_lines, dtype=np.float)
+        # Type 2 Reward: count of nodes not pulling power from grid
+        elif type in [2, 3, 4]:
+            graph_new = deepcopy(self.graph)
+            for line_idx, zeroed in enumerate(zeroed_lines):
+                if zeroed:
+                    v = self.net.line.from_bus[line_idx]
+                    w = self.net.line.to_bus[line_idx]
+                    graph_new.removeEdge(v, w)
+            self.reward_val = 0
+            ext_connections = self.net.ext_grid.bus.values
+            num_vmgs = 0
+            for subgraph in graph_new.connectedComponents():
+                if not np.any([item in subgraph for item in ext_connections]):
+                    self.reward_val += len(subgraph)
+                    num_vmgs += 1
+            self.reward_val *= num_vmgs
+        elif type == 5:
+            pass
 
+        # Add distance function:
+        if type == 3:
+            line_flow_values = np.maximum(np.abs(self.net.res_line.p_to_kw),
+                                          np.abs(self.net.res_line.p_from_kw)) - self.net.res_line.pl_kw
+            self.reward_val -= self.config.cont_reward_lambda * np.linalg.norm(line_flow_values, 1)
+        elif type == 4:
+            line_flow_values = np.maximum(np.abs(self.net.res_line.p_to_kw),
+                                          np.abs(self.net.res_line.p_from_kw)) - self.net.res_line.pl_kw
+            self.reward_val -= self.config.cont_reward_lambda * np.sum(np.minimum(np.abs(line_flow_values),
+                                                                                  1.0*np.ones(np.shape(line_flow_values)[0])))
         # Costs for running batteries
         cap_costs = self.net.storage.cap_cost
         max_e = self.net.storage.max_e_kwh
@@ -274,5 +295,5 @@ class NetModel(object):
         return self.reward_val
 
 if __name__ == "__main__":
-    env1 = NetModel(env_name='suburb_1')
-
+    env1 = NetModel(env_name='Six_Bus_POC')
+    env1.step([-0.02, -0.02])

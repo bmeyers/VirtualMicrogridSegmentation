@@ -15,6 +15,7 @@ import scipy.signal
 import os
 import time
 import inspect
+import matplotlib.pyplot as plt
 
 sys.path.append('..')
 from virtual_microgrids.powerflow import NetModel
@@ -181,6 +182,8 @@ class DDPG(object):
                                             self.config.reasonable_max_episodes*self.config.max_ep_steps)
         noise_schedule = LogSchedule(0.1, 0.001, 20*self.config.max_ep_steps)
 
+        # noise_schedule = LinearSchedule(0.5, 0.01, self.config.reasonable_max_episodes*self.config.max_ep_steps)
+
         self.actor.update_target_network()
         self.critic.update_target_network()
         replay_buffer = ReplayBuffer(self.config.buffer_size)
@@ -194,9 +197,12 @@ class DDPG(object):
             ep_ave_max_q = 0
             best_ep_reward = 0
 
-            # Initialize in case it doesn't ever do better
             best_r = 0.0
             best_reward_logical = None
+
+            soc_track = np.zeros((self.config.max_ep_steps, self.env.net.storage.shape[0]))
+            p_track = np.zeros((self.config.max_ep_steps, self.env.net.storage.shape[0]))
+            reward_track = np.zeros((self.config.max_ep_steps, 1))
 
             for j in range(self.config.max_ep_steps):
                 a = self.actor.predict(s[None, :]) + self.actor_noise(noise_schedule.epsilon)
@@ -237,6 +243,10 @@ class DDPG(object):
                     c2 = np.abs(self.env.net.res_line.p_from_kw - self.env.net.res_line.pl_kw) < self.config.reward_epsilon
                     best_reward_logical = np.logical_or(c1.values, c2.values)
 
+                soc_track[j, :] = self.env.net.storage.soc_percent
+                p_track[j, :] = self.env.net.storage.p_kw
+                reward_track[j] = r
+
                 s = s2
                 ep_reward += r
                 if done:
@@ -257,24 +267,45 @@ class DDPG(object):
                 avg_reward = np.mean(total_rewards)
                 sigma_reward = np.sqrt(np.var(total_rewards) / len(total_rewards))
                 avg_q = np.mean(ave_max_q)
-                s1 = "Average reward: {:04.2f} +/- {:04.2f}    Average Max Q: {:.2f}"
+                s1 = "---------------------------------------------------------\n" \
+                     +"Average reward: {:04.2f} +/- {:04.2f}    Average Max Q: {:.2f}"
                 msg = s1.format(avg_reward, sigma_reward, avg_q)
                 self.logger.info(msg)
-
-                msg2 = "The max episode reward achieved as: "+str(best_r)
-                msg3 = "The rewards happened on which lines: "+str(best_reward_logical)
-                self.logger.info(msg2)
-                self.logger.info(msg3)
-
-                msg4 = "The best episode reward was {}".format(best_ep_reward)
+                msg4 = "Best episode reward: {}".format(best_ep_reward)
                 self.logger.info(msg4)
+
+                msg2 = "Max single reward: "+str(best_r)
+                msg3 = "Max reward happened on lines: "+str(best_reward_logical)
+                end = "\n--------------------------------------------------------"
+                self.logger.info(msg2)
+                self.logger.info(msg3 + end)
+
+                fig, ax = plt.subplots(nrows=3, sharex=True)
+                xs = np.arange(self.config.max_ep_steps)
+                for k_step in range(self.env.net.storage.shape[0]):
+                    ax[1].plot(xs, soc_track[:, k_step].ravel(), marker='.',
+                               label='soc_{}'.format(k_step + 1))
+                    ax[0].plot(xs, p_track[:, k_step].ravel(), marker='.',
+                               label='pset_{}'.format(k_step + 1))
+                ax[0].legend()
+                ax[1].legend()
+                ax[2].stem(xs, reward_track, label='reward')
+                ax[2].legend()
+                ax[2].set_xlabel('time')
+                ax[0].set_ylabel('Power (kW)')
+                ax[1].set_ylabel('State of Charge')
+                ax[2].set_ylabel('Reward Received')
+                ax[0].set_title('Battery Behavior and Rewards')
+                plt.tight_layout()
+                plt.savefig(self.config.output_path + 'soc_plot_{}.png'.format(i))
+                plt.close()
 
                 total_rewards = []
                 ave_max_q = []
                 best_ep_reward = 0
 
         self.logger.info("- Training done.")
-        export_plot(scores_eval, "Score", config.env_name, self.config.plot_output)
+        export_plot(scores_eval, "Score", self.config.env_name, self.config.plot_output)
 
     def evaluate(self, env=None, num_episodes=1):
         """
@@ -301,8 +332,8 @@ class DDPG(object):
 
 if __name__ == '__main__':
 
-    config = get_config('Six_Bus_POC')
+    config = get_config('Six_Bus_POC', algorithm='DDPG')
     env = NetModel(config=config)
     # train model
-    model = DPG(env, config)
+    model = DDPG(env, config)
     model.run()
