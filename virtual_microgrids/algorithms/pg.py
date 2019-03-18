@@ -427,7 +427,7 @@ class PG(object):
       self.logger.info(msg)
 
     self.logger.info("- Training done.")
-    export_plot(scores_eval, "Score", config.env_name, self.config.plot_output)
+    export_plot(scores_eval, "Score", self.config.env_name, self.config.plot_output)
 
   def evaluate(self, env=None, num_episodes=1):
     """
