@@ -228,7 +228,7 @@ class NetModel(object):
         except:
             print('There was an error running the powerflow! pp.runpp() didnt work')
 
-    def calculate_reward(self, eps=0.001, type=2):
+    def calculate_reward(self, eps=0.001, type=4):
         """Calculate the reward associated with a power flow result.
 
         We count zero flow through the line as when the power flowing into the
@@ -256,7 +256,7 @@ class NetModel(object):
         if type == 1:
             self.reward_val = np.sum(zeroed_lines, dtype=np.float)
         # Type 2 Reward: count of nodes not pulling power from grid
-        elif type == 2:
+        elif type in [2, 3, 4]:
             graph_new = deepcopy(self.graph)
             for line_idx, zeroed in enumerate(zeroed_lines):
                 if zeroed:
@@ -271,9 +271,19 @@ class NetModel(object):
                     self.reward_val += len(subgraph)
                     num_vmgs += 1
             self.reward_val *= num_vmgs
-        # Type 3 Reward: same as Type 2 plus penalty for total power to/from grid
-        elif type == 3:
+        elif type == 5:
             pass
+
+        # Add distance function:
+        if type == 3:
+            line_flow_values = np.maximum(np.abs(self.net.res_line.p_to_kw),
+                                          np.abs(self.net.res_line.p_from_kw)) - self.net.res_line.pl_kw
+            self.reward_val -= self.config.cont_reward_lambda * np.linalg.norm(line_flow_values, 1)
+        elif type == 4:
+            line_flow_values = np.maximum(np.abs(self.net.res_line.p_to_kw),
+                                          np.abs(self.net.res_line.p_from_kw)) - self.net.res_line.pl_kw
+            self.reward_val -= self.config.cont_reward_lambda * np.sum(np.minimum(np.abs(line_flow_values),
+                                                                                  1.0*np.ones(np.shape(line_flow_values)[0])))
         # Costs for running batteries
         cap_costs = self.net.storage.cap_cost
         max_e = self.net.storage.max_e_kwh

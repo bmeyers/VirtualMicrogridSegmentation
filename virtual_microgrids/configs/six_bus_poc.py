@@ -40,7 +40,9 @@ class ConfigSixBusPOC(object):
         # model and training config - DDPG
         self.tau                    = 0.001
 
+        # reward function
         self.reward_epsilon = 0.001
+        self.cont_reward_lambda = 0.1
 
         self.buffer_size            = 1e6
         self.minibatch_size         = self.max_ep_len * 4
