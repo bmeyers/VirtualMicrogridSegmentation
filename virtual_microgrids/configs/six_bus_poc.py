@@ -1,4 +1,5 @@
 import numpy as np
+from datetime import datetime as dt
 from pandapower.networks import create_synthetic_voltage_control_lv_network as mknet
 
 class ConfigSixBusPOC(object):
@@ -13,8 +14,10 @@ class ConfigSixBusPOC(object):
         self.env_name = 'Six_Bus_POC'
 
         # output config
+        now  = dt.now()
+        now =  ''.join('_'.join(str(now).split(' ')).split(':'))
         baseline_str       = 'baseline' if use_baseline else 'no_baseline'
-        self.output_path   = "results/{}-{}-{}/".format(self.env_name, baseline_str, actor)
+        self.output_path   = "results/{}-{}-{}_{}/".format(self.env_name, baseline_str, actor, now)
         self.model_output  = self.output_path + "model.weights/"
         self.log_path      = self.output_path + "log.txt"
         self.plot_output   = self.output_path + "scores.png"
@@ -41,7 +44,7 @@ class ConfigSixBusPOC(object):
 
         self.buffer_size            = 1e6
         self.minibatch_size         = self.max_ep_len * 4
-        self.max_episodes           = 300
+        self.max_episodes           = 5000
         self.reasonable_max_episodes = min(500, self.max_episodes)
         self.max_ep_steps           = self.max_ep_len
 

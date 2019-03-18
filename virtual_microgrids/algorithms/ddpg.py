@@ -180,7 +180,7 @@ class DDPG(object):
                                            self.config.reasonable_max_episodes*self.config.max_ep_steps)
         critic_lr_schedule = LinearSchedule(self.config.critic_learning_rate_start, self.config.critic_learning_rate_end,
                                             self.config.reasonable_max_episodes*self.config.max_ep_steps)
-        noise_schedule = LinearSchedule(0.5, 0.1, self.config.reasonable_max_episodes*self.config.max_ep_steps)
+        noise_schedule = LinearSchedule(1, 0.01, self.config.reasonable_max_episodes*self.config.max_ep_steps)
         # works with 0.5, 0.01 Linear
 
         self.actor.update_target_network()
@@ -271,17 +271,20 @@ class DDPG(object):
                 avg_reward = np.mean(total_rewards)
                 sigma_reward = np.sqrt(np.var(total_rewards) / len(total_rewards))
                 avg_q = np.mean(ave_max_q)
-                s1 = "Average reward: {:04.2f} +/- {:04.2f}    Average Max Q: {:.2f}"
+                s1 = "---------------------------------------------------------\n" \
+                     +"Average reward: {:04.2f} +/- {:04.2f}    Average Max Q: {:.2f}"
                 msg = s1.format(avg_reward, sigma_reward, avg_q)
                 self.logger.info(msg)
-
-                msg2 = "The max episode reward achieved as: "+str(best_r)
-                msg3 = "The rewards happened on which lines: "+str(best_reward_logical)
-                self.logger.info(msg2)
-                self.logger.info(msg3)
-
-                msg4 = "The best episode reward was {}".format(best_ep_reward)
+                msg4 = "Best episode reward: {}".format(best_ep_reward)
                 self.logger.info(msg4)
+
+                msg2 = "Max single reward: "+str(best_r)
+                msg3 = "Max reward happened on lines: "+str(best_reward_logical)
+                end = "\n--------------------------------------------------------"
+                self.logger.info(msg2)
+                self.logger.info(msg3 + end)
+
+
 
                 plt.figure()
                 plt.plot(np.arange(0, self.config.max_ep_steps), achieved_1, '*')
@@ -301,7 +304,7 @@ class DDPG(object):
                 best_ep_reward = 0
 
         self.logger.info("- Training done.")
-        export_plot(scores_eval, "Score", config.env_name, self.config.plot_output)
+        export_plot(scores_eval, "Score", self.config.env_name, self.config.plot_output)
 
     def evaluate(self, env=None, num_episodes=1):
         """
@@ -328,7 +331,7 @@ class DDPG(object):
 
 if __name__ == '__main__':
 
-    config = get_config('Six_Bus_POC')
+    config = get_config('Six_Bus_POC', algorithm='DDPG')
     env = NetModel(config=config)
     # train model
     model = DDPG(env, config)
