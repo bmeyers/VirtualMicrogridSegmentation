@@ -6,4 +6,5 @@ packaging
 plotly
 numba
 tensorflow
+matplotlib
 python-igraph
