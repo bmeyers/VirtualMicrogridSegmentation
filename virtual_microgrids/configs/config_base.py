@@ -32,13 +32,9 @@ class ConfigBase(object):
         # model and training config - DDPG
         self.tau                    = 0.001
 
-        # reward function
-        self.reward_epsilon = 0.001
-        self.cont_reward_lambda = 0.1
-
         self.buffer_size            = 1e6
         self.minibatch_size         = self.max_ep_len * 4
-        self.max_episodes           = 1600
+        self.max_episodes           = 1000
         self.reasonable_max_episodes = min(600, self.max_episodes)
         self.max_ep_steps           = self.max_ep_len
 

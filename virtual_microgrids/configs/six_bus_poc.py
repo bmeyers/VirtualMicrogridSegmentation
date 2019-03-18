@@ -42,3 +42,7 @@ class ConfigSixBusPOC(ConfigBase):
 
         # state space
         self.with_soc = False
+
+        # reward function
+        self.reward_epsilon = 0.001
+        self.cont_reward_lambda = 0.1
