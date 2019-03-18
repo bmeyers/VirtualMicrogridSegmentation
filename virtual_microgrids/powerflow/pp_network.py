@@ -228,7 +228,7 @@ class NetModel(object):
         except:
             print('There was an error running the powerflow! pp.runpp() didnt work')
 
-    def calculate_reward(self, eps=0.001, type=2):
+    def calculate_reward(self, eps=0.001, type=3):
         """Calculate the reward associated with a power flow result.
 
         We count zero flow through the line as when the power flowing into the
@@ -290,9 +290,9 @@ class NetModel(object):
             self.reward_val *= num_vmgs
 
             # Add distance function:
-            line_flow_values = np.abs(np.maxiumum(self.net.res_line.p_to_kw,
-                                                  self.net.res_line.p_from_kw)) - self.net.res_line.pl_kw
-            self.reward_val += self.config.cont_reward_lambda * np.linalg.norm(line_flow_values, 1)
+            line_flow_values = np.abs(np.maximum(self.net.res_line.p_to_kw,
+                                                 self.net.res_line.p_from_kw)) - self.net.res_line.pl_kw
+            self.reward_val -= self.config.cont_reward_lambda * np.linalg.norm(line_flow_values, 1)
 
         elif type == 4:
             pass

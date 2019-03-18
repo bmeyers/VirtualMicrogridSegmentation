@@ -42,7 +42,7 @@ class ConfigSixBusPOC(object):
 
         # reward function
         self.reward_epsilon = 0.001
-        self.cont_reward_lambda = 0.1
+        self.cont_reward_lambda = 1.0
 
         self.buffer_size            = 1e6
         self.minibatch_size         = self.max_ep_len * 4
