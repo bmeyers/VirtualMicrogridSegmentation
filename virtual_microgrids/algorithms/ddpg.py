@@ -304,5 +304,5 @@ if __name__ == '__main__':
     config = get_config('Six_Bus_POC')
     env = NetModel(config=config)
     # train model
-    model = DPG(env, config)
+    model = DDPG(env, config)
     model.run()
