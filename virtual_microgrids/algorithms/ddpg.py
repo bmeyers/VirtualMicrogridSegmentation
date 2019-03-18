@@ -200,9 +200,8 @@ class DDPG(object):
             best_reward_logical = None
 
             soc_track = np.zeros((self.config.max_ep_steps, self.env.net.storage.shape[0]))
-            achieved_1 = np.zeros((self.config.max_ep_steps, 1))
-            achieved_2 = np.zeros((self.config.max_ep_steps, 1))
-            achieved_3 = np.zeros((self.config.max_ep_steps, 1))
+            p_track = np.zeros((self.config.max_ep_steps, self.env.net.storage.shape[0]))
+            reward_track = np.zeros((self.config.max_ep_steps, 1))
 
             for j in range(self.config.max_ep_steps):
                 a = self.actor.predict(s[None, :]) + self.actor_noise(noise_schedule.epsilon)
@@ -244,12 +243,8 @@ class DDPG(object):
                     best_reward_logical = np.logical_or(c1.values, c2.values)
 
                 soc_track[j, :] = self.env.net.storage.soc_percent
-                if r == 1:
-                    achieved_1[j] = 1.0
-                elif r == 2:
-                    achieved_2[j] = 1.0
-                elif r == 3:
-                    achieved_3[j] = 1.0
+                p_track[j, :] = self.env.net.storage.p_kw
+                reward_track[j] = r
 
                 s = s2
                 ep_reward += r
@@ -284,19 +279,24 @@ class DDPG(object):
                 self.logger.info(msg2)
                 self.logger.info(msg3 + end)
 
-
-
-                plt.figure()
-                plt.plot(np.arange(0, self.config.max_ep_steps), achieved_1, '*')
-                plt.plot(np.arange(0, self.config.max_ep_steps), achieved_2, '*')
-                plt.plot(np.arange(0, self.config.max_ep_steps), achieved_3, '*')
+                fig, ax = plt.subplots(nrows=3, sharex=True)
+                xs = np.arange(self.config.max_ep_steps)
                 for k_step in range(self.env.net.storage.shape[0]):
-                    plt.plot(np.arange(0, self.config.max_ep_steps), soc_track[:, k_step], '.')
-                plt.legend(labels=['Achieved r = 1', 'Achieved r = 2', 'Achieved r = 3'])
-                # plt.xlabel('Episode steps', fontname='Courier')
-                # plt.ylabel('SOC Percent', fontname='Courier')
-                # plt.title('Average reward: '+str(avg_reward)+' +/- '+str(sigma_reward), loc='center', fontname='Courier')
-                plt.savefig(self.config.output_path + 'soc_plot.png')  # , bbox_inches='tight')
+                    ax[1].plot(xs, soc_track[:, k_step].ravel(), marker='.',
+                               label='soc_{}'.format(k_step + 1))
+                    ax[0].plot(xs, p_track[:, k_step].ravel(), marker='.',
+                               label='pset_{}'.format(k_step + 1))
+                ax[0].legend()
+                ax[1].legend()
+                ax[2].stem(xs, reward_track, label='reward')
+                ax[2].legend()
+                ax[2].set_xlabel('time')
+                ax[0].set_ylabel('Power (kW)')
+                ax[1].set_ylabel('State of Charge')
+                ax[2].set_ylabel('Reward Received')
+                ax[0].set_title('Battery Behavior and Rewards')
+                plt.tight_layout()
+                plt.savefig(self.config.output_path + 'soc_plot_{}.png'.format(i))
                 plt.close()
 
                 total_rewards = []
