@@ -199,10 +199,7 @@ class DDPG(object):
             best_reward_logical = None
 
             for j in range(self.config.max_ep_steps):
-                if (i * self.config.max_ep_steps + j) < self.config.max_noisy_episodes :
-                    a = self.actor.predict(s[None, :]) + self.actor_noise(noise_schedule.epsilon)
-                else:
-                    a = self.actor.predict(s[None, :])
+                a = self.actor.predict(s[None, :]) + self.actor_noise(noise_schedule.epsilon)
                 s2, r, done, info = self.env.step(a[0])
                 replay_buffer.add(np.reshape(s, (self.state_dim)),
                                   np.reshape(a, (self.action_dim)),
