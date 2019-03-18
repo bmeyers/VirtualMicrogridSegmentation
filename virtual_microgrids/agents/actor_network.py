@@ -73,13 +73,13 @@ class ActorNetwork(object):
         in_training_mode = tf.placeholder(tf.bool)
         for i in range(self.n_layers):
             out = tf.keras.layers.Dense(units=self.size, activation=None)(out)
-            out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
+            #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
             out = tf.keras.activations.relu(out)
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
         w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003)
         out = tf.keras.layers.Dense(units=self.a_dim, activation=None,
                               kernel_initializer=w_init)(out)
-        out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
+        #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
         out = tf.keras.activations.tanh(out)
 
         centers = (self.min_p + self.max_p) / 2.0

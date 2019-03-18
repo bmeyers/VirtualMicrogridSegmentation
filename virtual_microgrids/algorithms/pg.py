@@ -40,8 +40,7 @@ def build_mlp(mlp_input, output_size, scope, n_layers, size, in_training_mode,
     out = tf.layers.flatten(mlp_input)
     for i in range(n_layers):
       out = tf.keras.layers.Dense(units=size, activation=None)(out)
-      out = tf.keras.layers.BatchNormalization()(out,
-                                                 training=in_training_mode)
+      #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
       out = tf.keras.activations.relu(out)
     w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003)
     out = tf.layers.Dense(units=output_size, activation=output_activation,

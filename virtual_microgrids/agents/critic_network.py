@@ -71,26 +71,25 @@ class CriticNetwork(object):
 
         out = tf.layers.flatten(inputs)
         out = tf.keras.layers.Dense(units=self.size, activation=None)(out)
-        out = tf.keras.layers.BatchNormalization()(out,training=in_training_mode)
+        #out = tf.keras.layers.BatchNormalization()(out,training=in_training_mode)
         out = tf.keras.activations.relu(out)
 
         t1 = tf.keras.layers.Dense(units=self.size, activation=None)(out)
         t2 = tf.keras.layers.Dense(units=self.size, use_bias=False, activation=None)(action)
         out = tf.keras.layers.Add()([t1, t2])
-        out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
+        #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
         out = tf.keras.activations.relu(out)
         for i in range(max(self.n_layers - 2, 0)):
             out = tf.keras.layers.Dense(units=self.size, activation=None)(out)
-            out = tf.keras.layers.BatchNormalization()(out,
-                                                       training=in_training_mode)
+            #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
             out = tf.keras.activations.relu(out)
 
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
         w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003) # Changed from 0.003 values
         out = tf.keras.layers.Dense(units=1, activation=None,
                                     kernel_initializer=w_init)(out)
-        out = tf.keras.layers.BatchNormalization()(out,
-                                                   training=in_training_mode)
+        #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
+        #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
 
         return inputs, action, out, in_training_mode
 
