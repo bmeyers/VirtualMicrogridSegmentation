@@ -276,15 +276,14 @@ class NetModel(object):
 
         # Add distance function:
         if type == 3:
-            line_flow_values = np.abs(np.maximum(self.net.res_line.p_to_kw,
-                                                 self.net.res_line.p_from_kw)) - self.net.res_line.pl_kw
+            line_flow_values = np.maximum(np.abs(self.net.res_line.p_to_kw),
+                                          np.abs(self.net.res_line.p_from_kw)) - self.net.res_line.pl_kw
             self.reward_val -= self.config.cont_reward_lambda * np.linalg.norm(line_flow_values, 1)
         elif type == 4:
-            line_flow_values = np.abs(np.maximum(self.net.res_line.p_to_kw,
-                                                 self.net.res_line.p_from_kw)) - self.net.res_line.pl_kw
-
+            line_flow_values = np.maximum(np.abs(self.net.res_line.p_to_kw),
+                                          np.abs(self.net.res_line.p_from_kw)) - self.net.res_line.pl_kw
             self.reward_val -= self.config.cont_reward_lambda * np.sum(np.minimum(np.abs(line_flow_values),
-                                                                           1.0*np.ones(np.shape(line_flow_values)[0])))
+                                                                                  1.0*np.ones(np.shape(line_flow_values)[0])))
         # Costs for running batteries
         cap_costs = self.net.storage.cap_cost
         max_e = self.net.storage.max_e_kwh
