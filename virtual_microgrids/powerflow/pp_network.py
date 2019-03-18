@@ -41,28 +41,12 @@ class NetModel(object):
         for idx, entry in self.net.line.iterrows():
             self.graph.addEdge(entry.from_bus, entry.to_bus)
 
-    def reset(self, state=None, action=None):
+    def reset(self):
         """Reset the network and reward values back to how they were initialized."""
         self.net = pp.copy.deepcopy(self.initial_net)
         self.reward_val = 0.0
         self.time = 0
-        if state is not None:
-            c = 0
-            new_loads = state[c:self.n_load]
-            c += self.n_load
-            new_sgen = state[c:self.n_sgen]
-            c += self.n_sgen
-            new_gen = state[c:self.n_gen]
-            c += self.n_gen
-            new_storage = state[c:self.n_storage]
-            self.update_loads(new_p=new_loads)
-            self.update_static_generation(new_p=new_sgen)
-            self.update_generation(new_p=new_gen)
-            self.update_batteries(new_p=new_storage)
-            if action is not None:
-                self.step(action)
         self.run_powerflow()
-        r = self.calculate_reward(eps=self.config.reward_epsilon)
         state = self.get_state()
         return state
 
