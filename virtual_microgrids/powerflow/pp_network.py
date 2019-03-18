@@ -35,7 +35,10 @@ class NetModel(object):
         self.n_sgen = len(self.net.sgen)
         self.n_gen = len(self.net.gen)
         self.n_storage = len(self.net.storage)
-        self.observation_dim = self.n_load + self.n_sgen + self.n_gen + 2 * self.n_storage
+        if self.config.with_soc:
+            self.observation_dim = self.n_load + self.n_sgen + self.n_gen + 2 * self.n_storage
+        else:
+            self.observation_dim = self.n_load + self.n_sgen + self.n_gen + self.n_storage
         self.action_dim = self.n_gen + self.n_storage
         self.graph = Graph(len(self.net.bus))
         for idx, entry in self.net.line.iterrows():
@@ -47,7 +50,7 @@ class NetModel(object):
         self.reward_val = 0.0
         self.time = 0
         self.run_powerflow()
-        state = self.get_state()
+        state = self.get_state(self.config.with_soc)
         return state
 
     def step(self, p_set):
@@ -77,13 +80,13 @@ class NetModel(object):
         # Run power flow
         self.run_powerflow()
         # Collect items to return
-        state = self.get_state()
+        state = self.get_state(self.config.with_soc)
         reward = self.calculate_reward(eps=self.config.reward_epsilon)
         done = self.time >= self.config.max_ep_len
         info = ''
         return state, reward, done, info
 
-    def get_state(self):
+    def get_state(self, with_soc=False):
         """Get the current state of the game
 
         The state is given by the power supplied or consumed by all devices
@@ -104,8 +107,11 @@ class NetModel(object):
         p_sgen = self.net.res_sgen.p_kw
         p_gen = self.net.res_gen.p_kw
         p_storage = self.net.res_storage.p_kw
-        soc_storage = self.net.storage.soc_percent
-        state = np.concatenate([p_load, p_sgen, p_gen, p_storage, soc_storage])
+        if with_soc:
+            soc_storage = self.net.storage.soc_percent
+            state = np.concatenate([p_load, p_sgen, p_gen, p_storage, soc_storage])
+        else:
+            state = np.concatenate([p_load, p_sgen, p_gen, p_storage])
         return state
 
     def update_loads(self, new_p=None, new_q=None):
