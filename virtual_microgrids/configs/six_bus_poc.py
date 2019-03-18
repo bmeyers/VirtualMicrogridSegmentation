@@ -77,8 +77,8 @@ class ConfigSixBusPOC(object):
         # Action space
         self.gen_p_min = -50.0
         self.gen_p_max = 0.0
-        self.storage_p_min = -10.0
-        self.storage_p_max = 10.0
+        self.storage_p_min = -5.0
+        self.storage_p_max = 5.0
 
         # parameters for the policy and baseline models
         self.n_layers               = 1
