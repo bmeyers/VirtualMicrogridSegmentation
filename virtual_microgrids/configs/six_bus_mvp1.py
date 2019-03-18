@@ -1,7 +1,7 @@
 import numpy as np
 from virtual_microgrids.configs.config_base import ConfigBase
 
-class ConfigSixBusPOC(ConfigBase):
+class ConfigSixBusMVP1(ConfigBase):
     """The configurations for the proof of concept (POC) simplest network used in this project.
 
     The configurations include parameters for the learning algorithm as well as for building and initializing the
@@ -10,7 +10,7 @@ class ConfigSixBusPOC(ConfigBase):
     after it is instantiated before using it to build the network.
     """
     def __init__(self, use_baseline, actor):
-        self.env_name = 'Six_Bus_POC'
+        self.env_name = 'Six_Bus_MVP1'
         super().__init__(use_baseline, actor, self.env_name)
 
         # environment generation
@@ -22,8 +22,8 @@ class ConfigSixBusPOC(ConfigBase):
         self.std_type = 'NAYY 4x50 SE'
         self.static_feeds = {
             3: -10 * np.ones(self.max_ep_len + 1),
-            6: -10 * np.ones(self.max_ep_len + 1),
-            4: 10 * np.ones(self.max_ep_len + 1),
+            6: -10.5 * np.ones(self.max_ep_len + 1),
+            4: 10.5 * np.ones(self.max_ep_len + 1),
             7: 10 * np.ones(self.max_ep_len + 1)
         }
         self.battery_locations = [3, 6]
