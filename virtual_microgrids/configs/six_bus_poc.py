@@ -27,7 +27,7 @@ class ConfigSixBusPOC(object):
         self.gamma                  = 0.9 # the discount factor
 
         # model and training config - PG
-        self.num_batches            = 500 # number of batches trained on
+        self.num_batches            = 300 # number of batches trained on
         self.batch_size             = 1000 # number of steps used to compute each policy update
         self.max_ep_len             = 60 # maximum episode length
         self.learning_rate          = 3e-2
@@ -41,8 +41,8 @@ class ConfigSixBusPOC(object):
 
         self.buffer_size            = 1e6
         self.minibatch_size         = self.max_ep_len * 4
-        self.max_episodes           = self.num_batches * self.batch_size
-        self.reasonable_max_episodes = 500
+        self.max_episodes           = 300
+        self.reasonable_max_episodes = min(500, self.max_episodes)
         self.max_ep_steps           = self.max_ep_len
 
         self.actor_learning_rate_start = 1e-3
