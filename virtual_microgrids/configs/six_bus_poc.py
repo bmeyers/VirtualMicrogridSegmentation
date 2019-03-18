@@ -68,7 +68,7 @@ class ConfigSixBusPOC(object):
         }
         self.battery_locations = [3, 6]
         self.init_soc = 0.5
-        self.energy_capacity = 20.0
+        self.energy_capacity = 21.0  # changed from 20 to see if endpoint problem
 
         # Generation
         self.gen_locations = None
