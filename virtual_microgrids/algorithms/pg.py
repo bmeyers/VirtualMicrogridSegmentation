@@ -1,17 +1,11 @@
 # -*- coding: UTF-8 -*-
 """The base of this code was prepared for a homework by course staff for CS234 at Stanford, Winter 2019."""
 
-import os
 import argparse
-import sys
-import logging
-import time
 import numpy as np
 import tensorflow as tf
-import scipy.signal
 import os
-import time
-import inspect
+import matplotlib.pyplot as plt
 
 from virtual_microgrids.powerflow import NetModel
 from virtual_microgrids.utils.general import get_logger, Progbar, export_plot
@@ -291,6 +285,10 @@ class PG(object):
       states, actions, rewards = [], [], []
       episode_reward = 0
 
+      soc_track = np.zeros((self.config.max_ep_steps, self.env.net.storage.shape[0]))
+      p_track = np.zeros((self.config.max_ep_steps, self.env.net.storage.shape[0]))
+      reward_track = np.zeros((self.config.max_ep_steps, 1))
+
       for step in range(self.config.max_ep_len):
         states.append(state)
         action = self.sess.run(self.sampled_action, feed_dict={self.observation_placeholder : states[-1][None]})[0]
@@ -298,6 +296,9 @@ class PG(object):
         actions.append(action)
         rewards.append(reward)
         episode_reward += reward
+        soc_track[step, :] = self.env.net.storage.soc_percent
+        p_track[step, :] = self.env.net.storage.p_kw
+        reward_track[step] = reward
         if reward > best_r:
           best_r = reward
           c1 = np.abs(env.net.res_line.p_to_kw - self.env.net.res_line.pl_kw) < self.config.reward_epsilon
@@ -306,8 +307,6 @@ class PG(object):
         t += 1
         if (done or step == self.config.max_ep_len-1):
           episode_rewards.append(episode_reward)
-          break
-        if (not num_episodes) and t == self.config.batch_size:
           break
 
       path = {"observation" : np.array(states),
@@ -318,7 +317,7 @@ class PG(object):
       if num_episodes and episode >= num_episodes:
         break
 
-    return paths, episode_rewards, best_r, best_reward_logical
+    return paths, episode_rewards, best_r, best_reward_logical, soc_track, p_track, reward_track
 
   def get_returns(self, paths):
     """
@@ -405,7 +404,7 @@ class PG(object):
     for t in range(self.config.num_batches):
 
       # collect a minibatch of samples
-      paths, total_rewards, best_r, best_reward_logical = self.sample_path(self.env)
+      paths, total_rewards, best_r, best_reward_logical, soc_track, p_track, reward_track = self.sample_path(self.env)
       scores_eval = scores_eval + total_rewards
       observations = np.concatenate([path["observation"] for path in paths])
       actions = np.concatenate([path["action"] for path in paths])
@@ -443,6 +442,26 @@ class PG(object):
       end = "\n--------------------------------------------------------"
       self.logger.info(msg2)
       self.logger.info(msg3 + end)
+
+      fig, ax = plt.subplots(nrows=3, sharex=True)
+      xs = np.arange(self.config.max_ep_steps)
+      for k_step in range(self.env.net.storage.shape[0]):
+        ax[1].plot(xs, soc_track[:, k_step].ravel(), marker='.',
+                   label='soc_{}'.format(k_step + 1))
+        ax[0].plot(xs, p_track[:, k_step].ravel(), marker='.',
+                   label='pset_{}'.format(k_step + 1))
+      ax[0].legend()
+      ax[1].legend()
+      ax[2].stem(xs, reward_track, label='reward')
+      ax[2].legend()
+      ax[2].set_xlabel('time')
+      ax[0].set_ylabel('Power (kW)')
+      ax[1].set_ylabel('State of Charge')
+      ax[2].set_ylabel('Reward Received')
+      ax[0].set_title('Battery Behavior and Rewards')
+      plt.tight_layout()
+      plt.savefig(self.config.output_path + 'soc_plot_{}.png'.format(t))
+      plt.close()
 
     self.logger.info("- Training done.")
     export_plot(scores_eval, "Score", self.config.env_name, self.config.plot_output)
