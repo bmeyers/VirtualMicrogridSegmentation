@@ -26,12 +26,12 @@ class CriticNetwork(object):
         self.critic_lr_placeholder = tf.placeholder(shape=None, dtype=tf.float32)
 
         # Create the critic network
-        self.inputs, self.action, self.out = self.create_critic_network()
+        self.inputs, self.action, self.out, self.in_training = self.create_critic_network()
 
         self.network_params = tf.trainable_variables()[num_actor_vars:]
 
         # Target Network
-        self.target_inputs, self.target_action, self.target_out = self.create_critic_network()
+        self.target_inputs, self.target_action, self.target_out, self.target_in_training = self.create_critic_network()
 
         self.target_network_params = tf.trainable_variables()[(len(self.network_params) + num_actor_vars):]
 
@@ -45,17 +45,19 @@ class CriticNetwork(object):
         # Network target (y_i)
         self.predicted_q_value = tf.placeholder(tf.float32, [None, 1])
 
-        # Define loss and optimization Op
-        self.loss = tf.losses.mean_squared_error(self.predicted_q_value, self.out)
-        self.optimize = tf.train.AdamOptimizer(
-            self.critic_lr_placeholder).minimize(self.loss)
+        extra_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(extra_ops):
+            # Define loss and optimization Op
+            self.loss = tf.losses.mean_squared_error(self.predicted_q_value, self.out)
+            self.optimize = tf.train.AdamOptimizer(
+                self.critic_lr_placeholder).minimize(self.loss)
 
-        # Get the gradient of the net w.r.t. the action.
-        # For each action in the minibatch (i.e., for each x in xs),
-        # this will sum up the gradients of each critic output in the minibatch
-        # w.r.t. that action. Each output is independent of all
-        # actions except for one.
-        self.action_grads = tf.gradients(self.out, self.action)
+            # Get the gradient of the net w.r.t. the action.
+            # For each action in the minibatch (i.e., for each x in xs),
+            # this will sum up the gradients of each critic output in the minibatch
+            # w.r.t. that action. Each output is independent of all
+            # actions except for one.
+            self.action_grads = tf.gradients(self.out, self.action)
 
     def create_critic_network(self):
 
@@ -65,57 +67,60 @@ class CriticNetwork(object):
         action = tf.placeholder(shape=[None, self.a_dim],
                                 dtype=tf.float32,
                                 name='action')
+        in_training_mode = tf.placeholder(tf.bool)
 
         out = tf.layers.flatten(inputs)
-        out = tf.layers.dense(out, units=self.size, activation=tf.nn.relu)
-        #out = tf.layers.batch_normalization(out)
-        #out = tf.nn.relu(out)
+        out = tf.keras.layers.Dense(units=self.size, activation=None)(out)
+        #out = tf.keras.layers.BatchNormalization()(out,training=in_training_mode)
+        out = tf.keras.activations.relu(out)
 
-        t1 = tf.layers.dense(out, units=self.size)
-        t2 = tf.layers.dense(action, units=self.size)
-
-        weights1 = tf.get_default_graph().get_tensor_by_name(
-            os.path.split(t1.name)[0] + '/kernel:0')
-        weights2 = tf.get_default_graph().get_tensor_by_name(
-            os.path.split(t2.name)[0] + '/kernel:0')
-        bias = tf.get_default_graph().get_tensor_by_name(
-            os.path.split(t1.name)[0] + '/bias:0')
-        out = tf.nn.relu(
-            tf.matmul(out, weights1) + tf.matmul(action, weights2) + bias)
-
-        for i in range(self.n_layers - 2):
-            out = tf.layers.dense(out, units=self.size, activation=tf.nn.relu)
+        t1 = tf.keras.layers.Dense(units=self.size, activation=None)(out)
+        t2 = tf.keras.layers.Dense(units=self.size, use_bias=False, activation=None)(action)
+        out = tf.keras.layers.Add()([t1, t2])
+        #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
+        out = tf.keras.activations.relu(out)
+        for i in range(max(self.n_layers - 2, 0)):
+            out = tf.keras.layers.Dense(units=self.size, activation=None)(out)
+            #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
+            out = tf.keras.activations.relu(out)
 
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
         w_init = tf.initializers.random_uniform(minval=-0.003, maxval=0.003) # Changed from 0.003 values
-        out = tf.layers.dense(out, units=1, kernel_initializer=w_init)
+        out = tf.keras.layers.Dense(units=1, activation=None,
+                                    kernel_initializer=w_init)(out)
+        #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
+        #out = tf.keras.layers.BatchNormalization()(out, training=in_training_mode)
 
-        return inputs, action, out
+        return inputs, action, out, in_training_mode
 
     def train(self, inputs, action, predicted_q_value, learning_rate):
         return self.sess.run([self.out, self.optimize], feed_dict={
             self.inputs: inputs,
             self.action: action,
             self.predicted_q_value: predicted_q_value,
-            self.critic_lr_placeholder: learning_rate
+            self.critic_lr_placeholder: learning_rate,
+            self.in_training: True
         })
 
     def predict(self, inputs, action):
         return self.sess.run(self.out, feed_dict={
             self.inputs: inputs,
-            self.action: action
+            self.action: action,
+            self.in_training: False
         })
 
     def predict_target(self, inputs, action):
         return self.sess.run(self.target_out, feed_dict={
             self.target_inputs: inputs,
-            self.target_action: action
+            self.target_action: action,
+            self.target_in_training: False
         })
 
     def action_gradients(self, inputs, actions):
         return self.sess.run(self.action_grads, feed_dict={
             self.inputs: inputs,
-            self.action: actions
+            self.action: actions,
+            self.in_training: True
         })
 
     def update_target_network(self):
