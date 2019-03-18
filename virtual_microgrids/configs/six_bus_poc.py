@@ -30,7 +30,7 @@ class ConfigSixBusPOC(object):
         self.gamma                  = 0.9 # the discount factor
 
         # model and training config - PG
-        self.num_batches            = 300 # number of batches trained on
+        self.num_batches            = 150 # number of batches trained on
         self.batch_size             = 1000 # number of steps used to compute each policy update
         self.max_ep_len             = 60 # maximum episode length
         self.learning_rate          = 3e-2
@@ -44,7 +44,7 @@ class ConfigSixBusPOC(object):
 
         self.buffer_size            = 1e6
         self.minibatch_size         = self.max_ep_len * 4
-        self.max_episodes           = 5000
+        self.max_episodes           = 1600
         self.reasonable_max_episodes = min(500, self.max_episodes)
         self.max_ep_steps           = self.max_ep_len
 
@@ -62,10 +62,10 @@ class ConfigSixBusPOC(object):
         self.length_km = 0.03
         self.std_type = 'NAYY 4x50 SE'
         self.static_feeds = {
-            3: -10 * np.ones(self.max_ep_len),
-            6: -10 * np.ones(self.max_ep_len),
-            4: 10 * np.ones(self.max_ep_len),
-            7: 10 * np.ones(self.max_ep_len)
+            3: -10 * np.ones(self.max_ep_len + 1),
+            6: -10 * np.ones(self.max_ep_len + 1),
+            4: 10 * np.ones(self.max_ep_len + 1),
+            7: 10 * np.ones(self.max_ep_len + 1)
         }
         self.battery_locations = [3, 6]
         self.init_soc = 0.5
