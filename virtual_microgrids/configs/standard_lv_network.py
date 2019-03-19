@@ -67,7 +67,7 @@ class StandardLVNetwork(ConfigBase):
         self.gen_max_p_kw = 20.0
 
         self.init_soc = 0.5
-        self.energy_capacity = 20.0
+        self.energy_capacity = 50.0
 
         # state space
         self.with_soc = False
