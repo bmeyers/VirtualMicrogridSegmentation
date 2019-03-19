@@ -45,7 +45,7 @@ class ConfigSixBusMVP2(ConfigBase):
         self.with_soc = False
 
         # reward function
-        self.reward_epsilon = 0.001
+        self.reward_epsilon = 0.01
         self.cont_reward_lambda = 0.1
 
         # parameters for the policy and baseline models
