@@ -122,12 +122,13 @@ def six_bus(vn_high=20, vn_low=0.4, length_km=0.03, std_type='NAYY 4x50 SE', bat
     else:
         if len(static_feeds) > 0:
             for key, val in static_feeds.items():
-                init_flow = val[0]
-                print('init_flow: ', init_flow, 'at bus: ', key)
-                if init_flow > 0:
-                    pp.create_load(net, bus=key, p_kw=init_flow, q_kvar=0)
-                else:
-                    pp.create_sgen(net, bus=key, p_kw=init_flow, q_kvar=0)
+                for key2, val2 in val.items():
+                    init_flow = val2[0]
+                    print('init_flow: ', init_flow, 'at bus: ', key)
+                    if init_flow > 0:
+                        pp.create_load(net, bus=key, p_kw=init_flow, q_kvar=0)
+                    else:
+                        pp.create_sgen(net, bus=key, p_kw=init_flow, q_kvar=0)
 
     return net
 
@@ -212,12 +213,13 @@ def standard_lv(env_name, remove_q=True, static_feeds_new=None, clear_loads_sgen
         print('Didnt think static_feeds_new was None')
         if len(static_feeds_new) > 0:
             for key, val in static_feeds_new.items():
-                init_flow = val[0]
-                print('init_flow: ', init_flow, 'at bus: ', key)
-                if init_flow > 0:
-                    pp.create_load(net, bus=key, p_kw=init_flow, q_kvar=0)
-                else:
-                    pp.create_sgen(net, bus=key, p_kw=init_flow, q_kvar=0)
+                for key2, val2 in val.items():
+                    init_flow = val2[0]
+                    print('init_flow: ', init_flow, 'at bus: ', key)
+                    if init_flow > 0:
+                        pp.create_load(net, bus=key, p_kw=init_flow, q_kvar=0)
+                    else:
+                        pp.create_sgen(net, bus=key, p_kw=init_flow, q_kvar=0)
 
     #  Name buses for plotting
     for i in range(net.bus.name.shape[0]):

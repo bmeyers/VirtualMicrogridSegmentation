@@ -40,10 +40,16 @@ class StandardLVNetwork(ConfigBase):
         if not self.clear_loads_sgen:
             if net.load.shape[0] > 0:
                 for idx, row in net.load.iterrows():
-                    self.static_feeds[row['bus']] = row['p_kw'] * np.ones(self.max_ep_len)
+                    if row['bus'] in self.static_feeds:
+                        self.static_feeds[row['bus']].update({0: row['p_kw'] * np.ones(self.max_ep_len + 1)})
+                    else:
+                        self.static_feeds[row['bus']] = {0: row['p_kw'] * np.ones(self.max_ep_len + 1)}
             if net.sgen.shape[0] > 0:
                 for idx, row in net.sgen.iterrows():
-                    self.static_feeds[row['bus']] = row['p_kw'] * np.ones(self.max_ep_len)
+                    if row['bus'] in self.static_feeds:
+                        self.static_feeds[row['bus']].update({1: row['p_kw'] * np.ones(self.max_ep_len + 1)})
+                    else:
+                        self.static_feeds[row['bus']] = {1: row['p_kw'] * np.ones(self.max_ep_len + 1)}
 
         self.battery_locations = None  # Specify specific locations, or can pick options for random generation:
         self.percent_battery_buses = 0.5  # How many of the buses should be assigned batteries
@@ -52,8 +58,8 @@ class StandardLVNetwork(ConfigBase):
         # Action space
         self.gen_p_min = -10.0
         self.gen_p_max = 0.0
-        self.storage_p_min = -10.0
-        self.storage_p_max = 10.0
+        self.storage_p_min = -20.0
+        self.storage_p_max = 20.0
 
         # # Generation
         self.gen_locations = None
@@ -67,5 +73,5 @@ class StandardLVNetwork(ConfigBase):
         self.with_soc = False
 
         # reward function
-        self.reward_epsilon = 0.001
-        self.cont_reward_lambda = 0.1
+        self.reward_epsilon = 0.01
+        self.cont_reward_lambda = 1.0
