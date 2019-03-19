@@ -39,10 +39,13 @@ class NetModel(object):
             self.observation_dim = self.n_load + self.n_sgen + self.n_gen + 2 * self.n_storage
         else:
             self.observation_dim = self.n_load + self.n_sgen + self.n_gen + self.n_storage
+        self.observation_dim *= 2
         self.action_dim = self.n_gen + self.n_storage
         self.graph = Graph(len(self.net.bus))
         for idx, entry in self.net.line.iterrows():
             self.graph.addEdge(entry.from_bus, entry.to_bus)
+        self.current_state = None
+        self.last_state = None
 
     def reset(self):
         """Reset the network and reward values back to how they were initialized."""
@@ -50,8 +53,9 @@ class NetModel(object):
         self.reward_val = 0.0
         self.time = 0
         self.run_powerflow()
-        state = self.get_state(self.config.with_soc)
-        return state
+        self.current_state = self.get_state(self.config.with_soc)
+        self.last_state = deepcopy(self.current_state)
+        return np.concatenate([self.current_state, self.last_state])
 
     def step(self, p_set):
         """Update the simulation by one step
@@ -61,6 +65,7 @@ class NetModel(object):
         """
         # Increment the time
         self.time += 1
+        self.last_state = deepcopy(self.current_state)
         # Update non-controllable resources from their predefined data feeds
         new_loads = pd.Series(data=None, index=self.net.load.bus)
         new_sgens = pd.Series(data=None, index=self.net.sgen.bus)
@@ -81,10 +86,11 @@ class NetModel(object):
         self.run_powerflow()
         # Collect items to return
         state = self.get_state(self.config.with_soc)
+        self.current_state = state
         reward = self.calculate_reward(eps=self.config.reward_epsilon)
         done = self.time >= self.config.max_ep_len
         info = ''
-        return state, reward, done, info
+        return np.concatenate([self.current_state, self.last_state]), reward, done, info
 
     def get_state(self, with_soc=False):
         """Get the current state of the game
