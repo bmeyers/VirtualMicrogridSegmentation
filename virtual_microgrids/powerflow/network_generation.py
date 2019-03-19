@@ -5,7 +5,7 @@ from pandapower.networks import create_synthetic_voltage_control_lv_network as m
 
 def get_net(config):
     """Given the configuration, call a function to create the network object."""
-    if config.env_name == 'Six_Bus_POC':
+    if 'Six_Bus' in config.env_name:
         return six_bus(config.vn_high, config.vn_low, config.length_km,
                        config.std_type, config.battery_locations, config.init_soc,
                        config.energy_capacity, config.static_feeds, config.gen_locations,
