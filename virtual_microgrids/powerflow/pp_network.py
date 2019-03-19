@@ -313,7 +313,8 @@ class NetModel(object):
         return self.reward_val
 
 if __name__ == "__main__":
-    #env1 = NetModel(env_name='Six_Bus_POC')
-    env1 = NetModel(env_name='Six_Bus_MVP3')
+    env1 = NetModel(env_name='Six_Bus_POC')
+    #env1 = NetModel(env_name='Six_Bus_MVP3')
+    env1.config.reward_epsilon = 0.1
     env1.reset()
     env1.step([-0.02, -0.02])
