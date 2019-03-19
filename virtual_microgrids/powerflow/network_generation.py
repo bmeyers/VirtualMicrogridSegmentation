@@ -209,6 +209,7 @@ def standard_lv(env_name, remove_q=True, static_feeds_new=None, clear_loads_sgen
     if static_feeds_new is None:
         print('No loads or generation added to network')
     else:
+        print('Didnt think static_feeds_new was None')
         if len(static_feeds_new) > 0:
             for key, val in static_feeds_new.items():
                 init_flow = val[0]
