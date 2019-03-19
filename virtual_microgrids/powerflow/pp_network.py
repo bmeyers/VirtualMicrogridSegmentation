@@ -14,7 +14,8 @@ class NetModel(object):
     generators, batteries, lines, buses, and transformers. The state of each is
     tracked in a pandapower network object.
     """
-    def __init__(self, config=None, env_name='Six_Bus_POC', baseline=True):
+    def __init__(self, config=None, env_name='Six_Bus_POC', baseline=True,
+                 actor='DDPG'):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
@@ -22,7 +23,7 @@ class NetModel(object):
             self.config = config
             self.net = get_net(self.config)
         else:
-            self.config = get_config(env_name, baseline)
+            self.config = get_config(env_name, baseline, actor)
             self.net = get_net(self.config)
 
         self.reward_val = 0.0
@@ -49,7 +50,12 @@ class NetModel(object):
 
     def reset(self):
         """Reset the network and reward values back to how they were initialized."""
-        self.net = pp.copy.deepcopy(self.initial_net)
+        if not self.config.randomize_env:
+            self.net = pp.copy.deepcopy(self.initial_net)
+        else:
+            self.config = get_config(self.config.env_name, self.config.use_baseline,
+                                     self.config.actor)
+            self.net = get_net(self.config)
         self.reward_val = 0.0
         self.time = 0
         self.run_powerflow()
@@ -307,5 +313,7 @@ class NetModel(object):
         return self.reward_val
 
 if __name__ == "__main__":
-    env1 = NetModel(env_name='Six_Bus_POC')
+    #env1 = NetModel(env_name='Six_Bus_POC')
+    env1 = NetModel(env_name='Six_Bus_MVP3')
+    env1.reset()
     env1.step([-0.02, -0.02])
