@@ -36,9 +36,9 @@ class NetModel(object):
         self.n_gen = len(self.net.gen)
         self.n_storage = len(self.net.storage)
         if self.config.with_soc:
-            self.observation_dim = self.n_load + self.n_sgen + self.n_gen + 2 * self.n_storage
+            self.observation_dim = self.n_load + self.n_sgen + self.n_storage
         else:
-            self.observation_dim = self.n_load + self.n_sgen + self.n_gen + self.n_storage
+            self.observation_dim = self.n_load + self.n_sgen
         self.observation_dim *= 2
         self.action_dim = self.n_gen + self.n_storage
         self.graph = Graph(len(self.net.bus))
@@ -55,7 +55,7 @@ class NetModel(object):
         self.run_powerflow()
         self.current_state = self.get_state(self.config.with_soc)
         self.last_state = deepcopy(self.current_state)
-        return np.concatenate([self.current_state, self.last_state])
+        return np.concatenate([self.current_state, self.current_state - self.last_state])
 
     def step(self, p_set):
         """Update the simulation by one step
@@ -90,7 +90,7 @@ class NetModel(object):
         reward = self.calculate_reward(eps=self.config.reward_epsilon)
         done = self.time >= self.config.max_ep_len
         info = ''
-        return np.concatenate([self.current_state, self.last_state]), reward, done, info
+        return np.concatenate([self.current_state, self.current_state - self.last_state]), reward, done, info
 
     def get_state(self, with_soc=False):
         """Get the current state of the game
@@ -115,9 +115,9 @@ class NetModel(object):
         p_storage = self.net.res_storage.p_kw
         if with_soc:
             soc_storage = self.net.storage.soc_percent
-            state = np.concatenate([p_load, p_sgen, p_gen, p_storage, soc_storage])
+            state = np.concatenate([p_load, p_sgen, soc_storage])
         else:
-            state = np.concatenate([p_load, p_sgen, p_gen, p_storage])
+            state = np.concatenate([p_load, p_sgen])
         return state
 
     def update_loads(self, new_p=None, new_q=None):
