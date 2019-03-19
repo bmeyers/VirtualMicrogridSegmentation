@@ -6,7 +6,7 @@ from virtual_microgrids.powerflow import NetModel
 from virtual_microgrids.algorithms import DDPG
 
 if __name__ == '__main__':
-    config = get_config('Six_Bus_MVP2', algorithm='DDPG')
+    config = get_config('Six_Bus_POC', algorithm='DDPG')
     env = NetModel(config=config)
     # train model
     model = DDPG(env, config)
