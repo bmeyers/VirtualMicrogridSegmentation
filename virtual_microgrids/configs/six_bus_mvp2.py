@@ -47,3 +47,7 @@ class ConfigSixBusMVP2(ConfigBase):
         # reward function
         self.reward_epsilon = 0.001
         self.cont_reward_lambda = 0.1
+
+        # parameters for the policy and baseline models
+        self.n_layers               = 2
+        self.layer_size             = 64
