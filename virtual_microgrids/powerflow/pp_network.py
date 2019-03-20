@@ -14,7 +14,8 @@ class NetModel(object):
     generators, batteries, lines, buses, and transformers. The state of each is
     tracked in a pandapower network object.
     """
-    def __init__(self, config=None, env_name='Six_Bus_POC', baseline=True):
+    def __init__(self, config=None, env_name='Six_Bus_POC', baseline=True,
+                 actor='DDPG'):
         """Initialize attributes of the object and zero out certain components
         in the standard test network."""
 
@@ -22,7 +23,7 @@ class NetModel(object):
             self.config = config
             self.net = get_net(self.config)
         else:
-            self.config = get_config(env_name, baseline)
+            self.config = get_config(env_name, baseline, actor)
             self.net = get_net(self.config)
 
         self.reward_val = 0.0
@@ -36,9 +37,10 @@ class NetModel(object):
         self.n_gen = len(self.net.gen)
         self.n_storage = len(self.net.storage)
         if self.config.with_soc:
-            self.observation_dim = self.n_load + self.n_sgen + self.n_gen + 2 * self.n_storage
+            self.observation_dim = self.n_load + self.n_sgen + self.n_storage
         else:
-            self.observation_dim = self.n_load + self.n_sgen + self.n_gen + self.n_storage
+            self.observation_dim = self.n_load + self.n_sgen
+        self.observation_dim *= 2
         self.action_dim = self.n_gen + self.n_storage
         self.graph = Graph(len(self.net.bus))
         for idx, entry in self.net.line.iterrows():
@@ -46,14 +48,24 @@ class NetModel(object):
         for idx, entry in self.net.trafo.iterrows():
             self.graph.addEdge(entry.hv_bus, entry.lv_bus)
 
+        self.current_state = None
+        self.last_state = None
+
+
     def reset(self):
         """Reset the network and reward values back to how they were initialized."""
-        self.net = pp.copy.deepcopy(self.initial_net)
+        if not self.config.randomize_env:
+            self.net = pp.copy.deepcopy(self.initial_net)
+        else:
+            self.config = get_config(self.config.env_name, self.config.use_baseline,
+                                     self.config.actor)
+            self.net = get_net(self.config)
         self.reward_val = 0.0
         self.time = 0
         self.run_powerflow()
-        state = self.get_state(self.config.with_soc)
-        return state
+        self.current_state = self.get_state(self.config.with_soc)
+        self.last_state = deepcopy(self.current_state)
+        return np.concatenate([self.current_state, self.current_state - self.last_state])
 
     def step(self, p_set):
         """Update the simulation by one step
@@ -63,6 +75,7 @@ class NetModel(object):
         """
         # Increment the time
         self.time += 1
+        self.last_state = deepcopy(self.current_state)
         # Update non-controllable resources from their predefined data feeds
         new_loads = pd.Series(data=None, index=self.net.load.bus)
         new_sgens = pd.Series(data=None, index=self.net.sgen.bus)
@@ -91,10 +104,11 @@ class NetModel(object):
         self.run_powerflow()
         # Collect items to return
         state = self.get_state(self.config.with_soc)
+        self.current_state = state
         reward = self.calculate_reward(eps=self.config.reward_epsilon)
         done = self.time >= self.config.max_ep_len
         info = ''
-        return state, reward, done, info
+        return np.concatenate([self.current_state, self.current_state - self.last_state]), reward, done, info
 
     def get_state(self, with_soc=False):
         """Get the current state of the game
@@ -119,9 +133,9 @@ class NetModel(object):
         p_storage = self.net.res_storage.p_kw
         if with_soc:
             soc_storage = self.net.storage.soc_percent
-            state = np.concatenate([p_load, p_sgen, p_gen, p_storage, soc_storage])
+            state = np.concatenate([p_load, p_sgen, soc_storage])
         else:
-            state = np.concatenate([p_load, p_sgen, p_gen, p_storage])
+            state = np.concatenate([p_load, p_sgen])
         return state
 
     def update_loads(self, new_p=None, new_q=None):
@@ -312,4 +326,8 @@ class NetModel(object):
 
 if __name__ == "__main__":
     env1 = NetModel(env_name='rural_1')  # 'Six_Bus_POC')
+    # env1.config.reward_epsilon = 0.1
+    # env1.reset()
     env1.step([-20.17500389, -20.46192559, -19.49983787,  19.80725726, 20.07191253, 20.18946847])
+    # env1.step([-0.02, -0.02])
+

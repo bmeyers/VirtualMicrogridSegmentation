@@ -17,6 +17,7 @@ class ConfigBase(object):
         self.record_freq   = 5
         self.summary_freq  = 1
         self.summary_freq2 = 20
+        self.actor = actor
 
         # model and training - general
         self.gamma                  = 0.9 # the discount factor
@@ -43,6 +44,8 @@ class ConfigBase(object):
         self.critic_learning_rate_start = 1e-2
         self.critic_learning_rate_end = 1e-3
         # self.actor_learning_rate_nsteps = self.max_episodes * self.max_ep_steps  # What should this be?
+
+        self.randomize_env = False
 
         # parameters for the policy and baseline models
         self.n_layers               = 1
