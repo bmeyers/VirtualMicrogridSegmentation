@@ -23,6 +23,7 @@ class StandardLVNetwork(ConfigBase):
         super().__init__(use_baseline, actor, self.env_name)
 
         self.reasonable_max_episodes = 1000
+        self.max_episodes = 2000
 
         self.remove_q = True
         self.clear_loads_sgen = False
@@ -55,7 +56,7 @@ class StandardLVNetwork(ConfigBase):
                     else:
                         self.static_feeds[row['bus']] = {1: row['p_kw'] * np.ones(n)}
 
-        self.battery_locations = None  # Specify specific locations, or can pick options for random generation:
+        self.battery_locations = [19, 23, 24, 22, 8, 10]  # None  # Specify specific locations, or can pick options for random generation:
         self.percent_battery_buses = 0.5  # How many of the buses should be assigned batteries
         self.batteries_on_leaf_nodes_only = True
 
@@ -81,7 +82,7 @@ class StandardLVNetwork(ConfigBase):
         self.cont_reward_lambda = 0.1
 
         self.moving = True
-        self.randomize_env = False
+        self.randomize_env = True  # If this is true, fix the buses where the storage is
 
         if self.moving:
             for bus, feed in self.static_feeds.items():
@@ -94,3 +95,6 @@ class StandardLVNetwork(ConfigBase):
                     a = np.random.uniform(-1, 1)
                     scale = np.random.uniform(0.5, 2)
                     feed += a * np.sin(2 * np.pi * np.arange(n) * scale / n)
+
+        self.n_layers = 2
+        self.layer_size = 128
