@@ -38,20 +38,22 @@ class StandardLVNetwork(ConfigBase):
             self.static_feeds = {}
         else:
             self.static_feeds = self.static_feeds_new.copy()
+
+        n = self.max_ep_len + 1
         net = mknet(network_class=env_name)
         if not self.clear_loads_sgen:
             if net.load.shape[0] > 0:
                 for idx, row in net.load.iterrows():
                     if row['bus'] in self.static_feeds:
-                        self.static_feeds[row['bus']].update({0: row['p_kw'] * np.ones(self.max_ep_len + 1)})
+                        self.static_feeds[row['bus']].update({0: row['p_kw'] * np.ones(n)})
                     else:
-                        self.static_feeds[row['bus']] = {0: row['p_kw'] * np.ones(self.max_ep_len + 1)}
+                        self.static_feeds[row['bus']] = {0: row['p_kw'] * np.ones(n)}
             if net.sgen.shape[0] > 0:
                 for idx, row in net.sgen.iterrows():
                     if row['bus'] in self.static_feeds:
-                        self.static_feeds[row['bus']].update({1: row['p_kw'] * np.ones(self.max_ep_len + 1)})
+                        self.static_feeds[row['bus']].update({1: row['p_kw'] * np.ones(n)})
                     else:
-                        self.static_feeds[row['bus']] = {1: row['p_kw'] * np.ones(self.max_ep_len + 1)}
+                        self.static_feeds[row['bus']] = {1: row['p_kw'] * np.ones(n)}
 
         self.battery_locations = None  # Specify specific locations, or can pick options for random generation:
         self.percent_battery_buses = 0.5  # How many of the buses should be assigned batteries
@@ -77,3 +79,18 @@ class StandardLVNetwork(ConfigBase):
         # reward function
         self.reward_epsilon = 0.01
         self.cont_reward_lambda = 0.1
+
+        self.moving = True
+        self.randomize_env = False
+
+        if self.moving:
+            for bus, feed in self.static_feeds.items():
+                if isinstance(feed, dict):
+                    for idx, feed2 in feed.items():
+                        a = np.random.uniform(-1, 1)
+                        scale = np.random.uniform(0.5, 2)
+                        feed2 += a * np.sin(2 * np.pi * np.arange(n) * scale / n)
+                else:
+                    a = np.random.uniform(-1, 1)
+                    scale = np.random.uniform(0.5, 2)
+                    feed += a * np.sin(2 * np.pi * np.arange(n) * scale / n)
