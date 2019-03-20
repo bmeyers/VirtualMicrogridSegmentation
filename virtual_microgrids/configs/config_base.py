@@ -36,7 +36,7 @@ class ConfigBase(object):
         self.buffer_size            = 1e6
         self.minibatch_size         = self.max_ep_len * 4
         self.max_episodes           = 1000
-        self.reasonable_max_episodes = min(600, self.max_episodes)
+        self.reasonable_max_episodes = min(800, self.max_episodes)
         self.max_ep_steps           = self.max_ep_len
 
         self.actor_learning_rate_start = 1e-3

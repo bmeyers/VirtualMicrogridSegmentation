@@ -40,7 +40,7 @@ class NetModel(object):
             self.observation_dim = self.n_load + self.n_sgen + self.n_storage
         else:
             self.observation_dim = self.n_load + self.n_sgen
-        self.observation_dim *= 2
+        #self.observation_dim *= 2
         self.action_dim = self.n_gen + self.n_storage
         self.graph = Graph(len(self.net.bus))
         for idx, entry in self.net.line.iterrows():
@@ -61,7 +61,8 @@ class NetModel(object):
         self.run_powerflow()
         self.current_state = self.get_state(self.config.with_soc)
         self.last_state = deepcopy(self.current_state)
-        return np.concatenate([self.current_state, self.current_state - self.last_state])
+        #return np.concatenate([self.current_state, self.current_state - self.last_state])
+        return self.current_state
 
     def step(self, p_set):
         """Update the simulation by one step
@@ -96,7 +97,8 @@ class NetModel(object):
         reward = self.calculate_reward(eps=self.config.reward_epsilon)
         done = self.time >= self.config.max_ep_len
         info = ''
-        return np.concatenate([self.current_state, self.current_state - self.last_state]), reward, done, info
+        #return np.concatenate([self.current_state, self.current_state - self.last_state]), reward, done, info
+        return self.current_state, reward, done, info
 
     def get_state(self, with_soc=False):
         """Get the current state of the game

@@ -22,8 +22,8 @@ class ConfigSixBusMVP1(ConfigBase):
         self.std_type = 'NAYY 4x50 SE'
         self.static_feeds = {
             3: -10 * np.ones(self.max_ep_len + 1),
-            6: -10.5 * np.ones(self.max_ep_len + 1),
-            4: 10.5 * np.ones(self.max_ep_len + 1),
+            6: -11 * np.ones(self.max_ep_len + 1),
+            4: 11.5 * np.ones(self.max_ep_len + 1),
             7: 10 * np.ones(self.max_ep_len + 1)
         }
         self.battery_locations = [3, 6]
