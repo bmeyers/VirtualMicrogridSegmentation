@@ -22,6 +22,8 @@ class StandardLVNetwork(ConfigBase):
         self.env_name = env_name
         super().__init__(use_baseline, actor, self.env_name)
 
+        self.reasonable_max_episodes = 1000
+
         self.remove_q = True
         self.clear_loads_sgen = False
         self.clear_gen = True
@@ -74,4 +76,4 @@ class StandardLVNetwork(ConfigBase):
 
         # reward function
         self.reward_epsilon = 0.01
-        self.cont_reward_lambda = 1.0
+        self.cont_reward_lambda = 0.1
