@@ -16,13 +16,31 @@ The goal of this project is to train a deep reinforcement learning (RL) agent to
 islands as possible by operating a grids storage resources. The agent is rewarded for separating nodes from the external
 grid connection and for splitting the graphs into as many segments as possible.  
 
-We implement PG (policy gradient) and DDPG (deep deterministic policy gradient) algorithms to train the agent, and
+As our environment is deterministic, we implement PG (policy gradient) and DDPG (deep deterministic policy gradient) algorithms to train the agent, and
 apply it to a small test network. We find the DDPG performs the best, and it can successfully maintain microgrids even when
 the loads are time varying and change between episodes. 
 
 ## The DDPG algorithm
 
+The DDPG algorithm was introduced by Lillicrap et al in "Continous control with deep reinforcement learning", available on
+arXiv at https://arxiv.org/abs/1509.02971. 
 
+This algorithm builds on the DPG deterministic actor-critic approach proposed by Silver et al in "Deterministic 
+Policy Gradient Algorithms", available at http://proceedings.mlr.press/v32/silver14.pdf. DDPG combines this approach with the 
+successes of deep learning from DQN. It is model-free, off-policy, and has been shown to learn complex continuous control 
+tasks in high dimensions quite well. 
+
+Standard stochastic PG involves taking the expectation over the distribution of actions to calculate the gradient step. 
+DDPG simply moves the policy in the direction of the gradient of Q, removing the need for an integral over the action space, 
+making it much more efficient at learning in our environment.
+
+In DDPG the algorithm builds a critic network to estimate the state action value function, Q(s,a). An actor network is built to 
+learn a behaviour from the critic estimation. The algorithm learns a deterministic policy but implements a stochastic behaviour
+policy by adding noise to the action choice to properly explore the solution space. The tuning and scheduling of this exploration 
+noise term is crucial to the success of the algorithm. 
+
+To help with convergence and stability, the algorithm is implemented with experience replay and with semi-stationary target
+networks. For more information on the theory and the algorithm applied, please refer to the papers.  
 
 ## Structure of the Code
 
