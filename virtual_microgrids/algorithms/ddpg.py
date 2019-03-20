@@ -180,7 +180,7 @@ class DDPG(object):
                                            self.config.reasonable_max_episodes*self.config.max_ep_steps)
         critic_lr_schedule = LinearSchedule(self.config.critic_learning_rate_start, self.config.critic_learning_rate_end,
                                             self.config.reasonable_max_episodes*self.config.max_ep_steps)
-        noise_schedule = LogSchedule(0.5, 0.0001, self.config.reasonable_max_episodes*self.config.max_ep_steps)
+        noise_schedule = LogSchedule(1.0, 0.001, self.config.reasonable_max_episodes*self.config.max_ep_steps)
 
         # noise_schedule = LinearSchedule(0.5, 0.01, self.config.reasonable_max_episodes*self.config.max_ep_steps)
 
@@ -199,6 +199,7 @@ class DDPG(object):
 
             best_r = 0.0
             best_reward_logical = None
+            optimal_action = None
 
             soc_track = np.zeros((self.config.max_ep_steps, self.env.net.storage.shape[0]))
             p_track = np.zeros((self.config.max_ep_steps, self.env.net.storage.shape[0]))
@@ -252,6 +253,7 @@ class DDPG(object):
                 if done:
                     if ep_reward > best_ep_reward:
                         best_ep_reward = ep_reward
+                        optimal_action = a
                     total_rewards.append(ep_reward)
                     ep_ave_max_q /= j
                     ave_max_q.append(ep_ave_max_q)
@@ -276,8 +278,10 @@ class DDPG(object):
 
                 msg2 = "Max single reward: "+str(best_r)
                 msg3 = "Max reward happened on lines: "+str(best_reward_logical)
+                msg4 = "The optimal action was: "+str(optimal_action)
                 end = "\n--------------------------------------------------------"
                 self.logger.info(msg2)
+                self.logger.info(msg4)
                 self.logger.info(msg3 + end)
 
                 fig, ax = plt.subplots(nrows=3, sharex=True)

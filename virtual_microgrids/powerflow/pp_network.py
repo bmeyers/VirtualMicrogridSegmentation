@@ -45,8 +45,12 @@ class NetModel(object):
         self.graph = Graph(len(self.net.bus))
         for idx, entry in self.net.line.iterrows():
             self.graph.addEdge(entry.from_bus, entry.to_bus)
+        for idx, entry in self.net.trafo.iterrows():
+            self.graph.addEdge(entry.hv_bus, entry.lv_bus)
+
         self.current_state = None
         self.last_state = None
+
 
     def reset(self):
         """Reset the network and reward values back to how they were initialized."""
@@ -76,11 +80,19 @@ class NetModel(object):
         new_loads = pd.Series(data=None, index=self.net.load.bus)
         new_sgens = pd.Series(data=None, index=self.net.sgen.bus)
         for bus, feed in self.config.static_feeds.items():
-            p_new = feed[self.time]
-            if p_new > 0:
-                new_loads[bus] = p_new
+            if isinstance(feed, dict):
+                for idx, feed2 in feed.items():
+                    p_new = feed2[self.time]
+                    if p_new > 0:
+                        new_loads[bus] = p_new
+                    else:
+                        new_sgens[bus] = p_new
             else:
-                new_sgens[bus] = p_new
+                p_new = feed[self.time]
+                if p_new > 0:
+                    new_loads[bus] = p_new
+                else:
+                    new_sgens[bus] = p_new
         self.update_loads(new_p=new_loads.values)
         self.update_static_generation(new_p=new_sgens.values)
         # Update controllable resources
@@ -301,7 +313,7 @@ class NetModel(object):
             line_flow_values = np.maximum(np.abs(self.net.res_line.p_to_kw),
                                           np.abs(self.net.res_line.p_from_kw)) - self.net.res_line.pl_kw
             self.reward_val -= self.config.cont_reward_lambda * np.sum(np.minimum(np.abs(line_flow_values),
-                                                                                  1.0*np.ones(np.shape(line_flow_values)[0])))
+                                                                                  3.0*np.ones(np.shape(line_flow_values)[0])))
         # Costs for running batteries
         cap_costs = self.net.storage.cap_cost
         max_e = self.net.storage.max_e_kwh
@@ -313,8 +325,9 @@ class NetModel(object):
         return self.reward_val
 
 if __name__ == "__main__":
-    env1 = NetModel(env_name='Six_Bus_POC')
-    #env1 = NetModel(env_name='Six_Bus_MVP3')
-    env1.config.reward_epsilon = 0.1
-    env1.reset()
-    env1.step([-0.02, -0.02])
+    env1 = NetModel(env_name='rural_1')  # 'Six_Bus_POC')
+    # env1.config.reward_epsilon = 0.1
+    # env1.reset()
+    env1.step([-20.17500389, -20.46192559, -19.49983787,  19.80725726, 20.07191253, 20.18946847])
+    # env1.step([-0.02, -0.02])
+

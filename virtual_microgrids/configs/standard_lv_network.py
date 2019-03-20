@@ -1,7 +1,9 @@
 import numpy as np
 from pandapower.networks import create_synthetic_voltage_control_lv_network as mknet
+from virtual_microgrids.configs.config_base import ConfigBase
 
-class StandardLVNetwork(object):
+
+class StandardLVNetwork(ConfigBase):
     """The configurations for using any of the standard low voltage (LV) test networks shipped with pandapower.
 
     Options in this set up include choices to remove the generation and load elements built in to the test network, and
@@ -18,38 +20,10 @@ class StandardLVNetwork(object):
     """
     def __init__(self, env_name, use_baseline, actor):
         self.env_name = env_name
+        super().__init__(use_baseline, actor, self.env_name)
 
-        # output config
-        baseline_str = 'baseline' if use_baseline else 'no_baseline'
-        self.output_path = "results/{}-{}-{}/".format(self.env_name, baseline_str, actor)
-        self.model_output = self.output_path + "model.weights/"
-        self.log_path = self.output_path + "log.txt"
-        self.plot_output = self.output_path + "scores.png"
-        self.record_path = self.output_path
-        self.record_freq = 5
-        self.summary_freq = 1
-        self.summary_freq2 = 1000
-
-        # model and training - general
-        self.gamma                  = 0.9  # the discount factor
-
-        # model and training config - PG
-        self.num_batches            = 500  # number of batches trained on
-        self.batch_size             = 1000  # number of steps used to compute each policy update
-        self.max_ep_len             = 60  # maximum episode length
-        self.learning_rate          = 3e-2
-        self.use_baseline           = use_baseline
-        self.normalize_advantage    = True
-
-        # model and training config - DDPG
-        self.tau                    = 0.001
-        self.reward_epsilon = 0.001
-        self.actor_learning_rate    = 1e-3
-        self.critic_learning_rate   = 1e-2
-        self.buffer_size            = 1e6
-        self.minibatch_size         = 64
-        self.max_episodes           = 500
-        self.max_ep_steps           = self.max_ep_len
+        self.reasonable_max_episodes = 1000
+        self.max_episodes = 2000
 
         self.remove_q = True
         self.clear_loads_sgen = False
@@ -65,38 +39,62 @@ class StandardLVNetwork(object):
             self.static_feeds = {}
         else:
             self.static_feeds = self.static_feeds_new.copy()
+
+        n = self.max_ep_len + 1
         net = mknet(network_class=env_name)
         if not self.clear_loads_sgen:
             if net.load.shape[0] > 0:
                 for idx, row in net.load.iterrows():
-                    self.static_feeds[row['bus']] = row['p_kw'] * np.ones(self.max_ep_len)
+                    if row['bus'] in self.static_feeds:
+                        self.static_feeds[row['bus']].update({0: row['p_kw'] * np.ones(n)})
+                    else:
+                        self.static_feeds[row['bus']] = {0: row['p_kw'] * np.ones(n)}
             if net.sgen.shape[0] > 0:
                 for idx, row in net.sgen.iterrows():
-                    self.static_feeds[row['bus']] = row['p_kw'] * np.ones(self.max_ep_len)
+                    if row['bus'] in self.static_feeds:
+                        self.static_feeds[row['bus']].update({1: row['p_kw'] * np.ones(n)})
+                    else:
+                        self.static_feeds[row['bus']] = {1: row['p_kw'] * np.ones(n)}
 
-        self.battery_locations = None  # Specify specific locations, or can pick options for random generation:
+        self.battery_locations = [19, 23, 24, 22, 8, 10]  # None  # Specify specific locations, or can pick options for random generation:
         self.percent_battery_buses = 0.5  # How many of the buses should be assigned batteries
         self.batteries_on_leaf_nodes_only = True
 
         # Action space
-        self.gen_p_min = -50.0
+        self.gen_p_min = -10.0
         self.gen_p_max = 0.0
-        self.storage_p_min = -50.0
-        self.storage_p_max = 50.0
+        self.storage_p_min = -20.0
+        self.storage_p_max = 20.0
 
-        # Generation
-        self.gen_locations = [4]
-        self.gen_max_p_kw = [20.0]
+        # # Generation
+        self.gen_locations = None
+        # self.gen_locations = [4]
+        self.gen_max_p_kw = 20.0
 
         self.init_soc = 0.5
-        self.energy_capacity = 20.0
+        self.energy_capacity = 50.0
 
-        # parameters for the policy and baseline models
-        self.n_layers               = 1
-        self.layer_size             = 16
-        self.activation             = None
+        # state space
+        self.with_soc = False
 
-        # since we start new episodes for each batch
-        assert self.max_ep_len <= self.batch_size
-        if self.max_ep_len < 0:
-            self.max_ep_len = self.batch_size
+        # reward function
+        self.reward_epsilon = 0.01
+        self.cont_reward_lambda = 0.1
+
+        self.moving = True
+        self.randomize_env = True  # If this is true, fix the buses where the storage is
+
+        if self.moving:
+            for bus, feed in self.static_feeds.items():
+                if isinstance(feed, dict):
+                    for idx, feed2 in feed.items():
+                        a = np.random.uniform(-1, 1)
+                        scale = np.random.uniform(0.5, 2)
+                        feed2 += a * np.sin(2 * np.pi * np.arange(n) * scale / n)
+                else:
+                    a = np.random.uniform(-1, 1)
+                    scale = np.random.uniform(0.5, 2)
+                    feed += a * np.sin(2 * np.pi * np.arange(n) * scale / n)
+
+        self.n_layers = 2
+        self.layer_size = 128
