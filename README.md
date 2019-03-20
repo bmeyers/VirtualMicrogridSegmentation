@@ -1,5 +1,9 @@
 # Virtual Microgrid Segmentation
-CS234 Project, Winter 2019
+Stanford CS234 Final Project, Winter 2019
+
+Instructor: Prof. Emma Brunskill
+
+Class website: http://web.stanford.edu/class/cs234/index.html
 
 Project team: Bennet Meyers and Siobhan Powell
 
