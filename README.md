@@ -64,9 +64,34 @@ DDPG object uses them to learn the optimal policy. DDPG manages the training of 
 and controls the interactions with the grid network model. 
 
 
-  
-
-
-
-
 #### Code organization
+
+The main folder contains scratch notebooks for testing, developing, and interacting with the environments.
+
+The 'scripts' folder contains scripts to run the algorithms. For example, change the environment name or config name
+in 'run_ddpg.py' and then run
+
+    python run_ddpgy.py 
+    
+to start the simulation. 
+
+The 'virtual_microgrids' folder contains all the pieces of the simulation. To run you do not need to change anything in here,
+but to change parameters or change the algorithm you will need to work with these files.  
+- The subfolder 'agents' contains the classes
+to build the actor and critic network objects. 
+- The 'algorithms' subfolder classes which run the PG and DDPG implementations. 
+- The 'configs' subfolder contains the configuration files for each test case and network. To create a new or altered test case,
+create a new config file in the style of six_bus_mvp1.py, for example. 
+- The 'powerflow' subfolder contains a class to manage the power network and functions to create the networks from the config files
+- The 'utils' subfolder contains tools used throughout the other methods and functions, including the schedules used to generate the noise
+ 
+
+The 'results' folder contains the outputs from running the algorithm. Running the command 
+
+    tensorboard --logdir [path to results folder]
+    
+and then visiting 
+
+    localhost:6006
+    
+in your browser will let you inspect the tensorflow setup and see plots of the results.  
